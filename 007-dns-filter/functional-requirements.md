@@ -118,6 +118,6 @@ S007-FR-035 [P1] DNS allow rules **MAY** include an optional `egress` block with
 
 S007-FR-036 [P1] When `egress.mode` is `proxy`, `outcalld` **MUST NOT** open direct nftables L3/L4 allow rules from DNS results. This mode is the recommended default for shared IP/CDN safety.
 
-S007-FR-037 [P1] When `egress.mode` is `direct_ip`, `outcalld` **MUST** derive IPv4 destinations from the allowed DNS response and insert per-container dynamic nftables allow rules for TCP destination ports listed in `egress.ports`.
+S007-FR-037 [P1] When `egress.mode` is `direct_ip`, `outcalld` **MUST** derive IPv4 and IPv6 destinations from the allowed DNS response's A and AAAA records respectively, and insert per-container dynamic nftables allow rules for TCP destination ports listed in `egress.ports`. IPv4 destinations use `ip saddr/ip daddr` rules; IPv6 destinations use `ip6 saddr/ip6 daddr` rules. IPv4 source addresses used in IPv6 rules are expressed as IPv4-mapped IPv6 addresses (`::ffff:x.x.x.x`).
 
 S007-FR-038 [P2] If `egress.mode` is `direct_ip` and `egress.ports` is omitted or empty, `outcalld` **MUST** default to `[80, 443]`.

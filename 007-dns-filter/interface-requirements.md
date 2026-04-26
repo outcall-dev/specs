@@ -202,5 +202,5 @@ rules:
       ports: [80, 443]     # optional, direct_ip only
 ```
 
-- `mode: proxy` keeps enforcement at L7 (proxy/SNI path), with no direct L3/L4 hole.
-- `mode: direct_ip` inserts dynamic nftables allows from resolved IPv4 answers.
+ - `mode: proxy` keeps enforcement at L7 (proxy/SNI path), with no direct L3/L4 hole.
+ - `mode: direct_ip` inserts dynamic nftables allows from resolved IPv4 (A) and IPv6 (AAAA) answers. IPv4 rules use `ip saddr/daddr`; IPv6 rules use `ip6 saddr/daddr`. When an IPv4 source address is used in an IPv6 rule context, it is expressed as an IPv4-mapped IPv6 address (`::ffff:x.x.x.x`).
