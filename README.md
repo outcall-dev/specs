@@ -15,6 +15,8 @@
 | [S008](008-docker-manager/index.md) | Docker Manager | Draft | S001-S007 |
 | [S009](009-dynamic-rules/index.md) | Dynamic Rules | Draft | S001, S003 |
 | [S010](010-dashboard/index.md) | Dashboard | Draft | S001-S009 |
+| [S011](011-tls-interception/index.md) | TLS Interception (optional) | Draft | S006 |
+| [S012](012-test-coverage/index.md) | Test Coverage | Draft | All |
 
 ## Startup Sequence
 

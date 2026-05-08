@@ -36,4 +36,4 @@ S000-US-001 [P1] As a developer, I want a single `cargo build --workspace` to co
 
 ## Cross-Spec Dependencies
 
-- **Required by:** All specs (S001-S010)
+- **Required by:** All specs (S001-S011)
