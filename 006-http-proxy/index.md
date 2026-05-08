@@ -5,7 +5,7 @@
 | Spec | S006 |
 | Feature | HTTP Proxy |
 | Date | 2026-04-21 |
-| Status | Draft |
+| Status | Implemented |
 | Author | @marktopper |
 
 ## Overview

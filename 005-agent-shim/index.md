@@ -5,7 +5,7 @@
 | Spec | S005 |
 | Feature | Agent Shim |
 | Date | 2026-04-21 |
-| Status | Draft |
+| Status | Implemented |
 | Author | @marktopper |
 
 ## Overview

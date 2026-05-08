@@ -5,7 +5,7 @@
 | Spec | S004 |
 | Feature | Agent API |
 | Date | 2026-04-21 |
-| Status | Draft |
+| Status | Implemented |
 | Author | @marktopper |
 
 ## Overview

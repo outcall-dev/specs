@@ -5,7 +5,7 @@
 | Spec | S011 |
 | Feature | TLS Interception (optional MITM) |
 | Date | 2026-05-05 |
-| Status | Draft |
+| Status | Implemented |
 | Author | @marktopper |
 
 ## Overview

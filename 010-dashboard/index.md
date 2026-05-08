@@ -5,7 +5,7 @@
 | Spec | S010 |
 | Feature | Dashboard (outcall-ui) |
 | Date | 2026-04-22 |
-| Status | Draft |
+| Status | Implemented |
 | Author | @marktopper |
 
 ## Overview

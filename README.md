@@ -6,17 +6,18 @@
 |------|---------|--------|------------|
 | [S000](000-workspace/index.md) | Workspace & Shared Types | Implemented | — |
 | [S001](001-bridge-management/index.md) | Bridge Management | Implemented | S000 |
-| [S002](002-network-management/index.md) | Network Management | Draft | S001 |
-| [S003](003-rule-engine/index.md) | Rule Engine | Draft | S001, S002 |
-| [S004](004-agent-api/index.md) | Agent API | Draft | S003 |
-| [S005](005-agent-shim/index.md) | Agent Shim | Draft | S003, S004 |
-| [S006](006-http-proxy/index.md) | HTTP Proxy | Draft | S002, S003 |
-| [S007](007-dns-filter/index.md) | DNS Filter | Draft | S001, S003 |
-| [S008](008-docker-manager/index.md) | Docker Manager | Draft | S001-S007 |
-| [S009](009-dynamic-rules/index.md) | Dynamic Rules | Draft | S001, S003 |
-| [S010](010-dashboard/index.md) | Dashboard | Draft | S001-S009 |
-| [S011](011-tls-interception/index.md) | TLS Interception (optional) | Draft | S006 |
-| [S012](012-test-coverage/index.md) | Test Coverage | Draft | All |
+| [S002](002-network-management/index.md) | Network Management | Implemented | S001 |
+| [S003](003-rule-engine/index.md) | Rule Engine | Implemented | S001, S002 |
+| [S004](004-agent-api/index.md) | Agent API | Implemented | S003 |
+| [S005](005-agent-shim/index.md) | Agent Shim | Implemented | S003, S004 |
+| [S006](006-http-proxy/index.md) | HTTP Proxy | Implemented | S002, S003 |
+| [S007](007-dns-filter/index.md) | DNS Filter | Implemented | S001, S003 |
+| [S008](008-docker-manager/index.md) | Docker Manager | Implemented | S001-S007 |
+| [S009](009-dynamic-rules/index.md) | Dynamic Rules | Implemented | S001, S003 |
+| [S010](010-dashboard/index.md) | Dashboard | Implemented | S001-S009 |
+| [S011](011-tls-interception/index.md) | TLS Interception (optional) | Implemented | S006 |
+| [S012](012-test-coverage/index.md) | Test Coverage | Implemented | All |
+| [S013](013-agent-name-context/index.md) | Agent-Name Rule Context | Pending Implementation | S003, S008 |
 
 ## Startup Sequence
 

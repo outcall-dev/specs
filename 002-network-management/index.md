@@ -5,7 +5,7 @@
 | Spec | S002 |
 | Feature | Network Management |
 | Date | 2026-04-22 |
-| Status | Draft |
+| Status | Implemented |
 | Author | @marktopper |
 
 ## Overview

@@ -5,7 +5,7 @@
 | Spec | S012 |
 | Feature | Test coverage targets and integration test inventory |
 | Date | 2026-05-05 |
-| Status | Draft |
+| Status | Implemented |
 | Author | @marktopper |
 
 ## Overview

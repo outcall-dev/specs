@@ -5,7 +5,7 @@
 | Spec | S009 |
 | Feature | Dynamic Rules |
 | Date | 2026-04-22 |
-| Status | Draft |
+| Status | Implemented |
 | Author | @marktopper |
 
 ## Overview

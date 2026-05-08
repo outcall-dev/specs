@@ -5,7 +5,7 @@
 | Spec | S008 |
 | Feature | Docker Manager |
 | Date | 2026-04-21 |
-| Status | Draft |
+| Status | Implemented |
 | Author | @marktopper |
 
 ## Overview
