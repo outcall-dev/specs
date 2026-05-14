@@ -45,22 +45,32 @@ by inspecting the `agent.name` field in evaluation logs.
 
 | ID | Type | Priority | Title | Status |
 |----|------|----------|-------|--------|
-| S013-FR-001 | Functional | P1 | AgentContext type in outcall-api | Draft |
-| S013-FR-002 | Functional | P1 | `agent` field in EvalContext | Draft |
-| S013-FR-003 | Functional | P1 | SO_PEERCRED to container name resolution | Draft |
-| S013-FR-004 | Functional | P1 | Agent name derived from container name | Draft |
-| S013-FR-005 | Functional | P1 | `agent.name` exposed in CEL | Draft |
-| S013-FR-006 | Functional | P1 | DockerContext.image remains unchanged | Draft |
-| S013-IF-001 | Interface | P1 | AgentContext struct in outcall-api | Draft |
-| S013-IF-002 | Interface | P2 | Extend DockerManager::build_eval_context | Draft |
-| S013-IF-003 | Interface | P1 | Document `agent.name` in docs/rules.md | Draft |
-| S013-EC-001 | Edge Case | P1 | SO_PEERCRED not available (non-Unix socket) | Draft |
-| S013-EC-002 | Edge Case | P1 | Container IP not found in DockerManager | Draft |
-| S013-EC-003 | Edge Case | P2 | Agent name with no trailing `-N` | Draft |
-| S013-EC-004 | Edge Case | P1 | Async resolution does not block rule evaluation | Draft |
-| S013-SC-001 | Success | P1 | `agent.name` accessible in CEL rules | Draft |
-| S013-SC-002 | Success | P1 | Rule `agent.name == "foobar"` matches foobar-1 and foobar-2 | Draft |
-| S013-SC-003 | Success | P1 | AgentContext does not break existing EvalContext consumers | Draft |
+| S013-FR-001 | Functional | P1 | AgentContext type in outcall-api | Implemented (`outcall-api/src/lib.rs:158`) |
+| S013-FR-002 | Functional | P1 | `agent` field in EvalContext | Implemented (`outcall-api/src/lib.rs:163`) |
+| S013-FR-003 | Functional | P1 | SO_PEERCRED to container name resolution | Partial — proxy path uses peer-IP lookup; agent_api shim path tracked in issue #4 |
+| S013-FR-004 | Functional | P1 | Agent name derived from container name | Implemented (`agent_api/mod.rs:derive_agent_name`) |
+| S013-FR-005 | Functional | P1 | `agent.name` exposed in CEL | Implemented for proxy + agent_api paths |
+| S013-FR-006 | Functional | P1 | DockerContext.image remains unchanged | Implemented |
+| S013-IF-001 | Interface | P1 | AgentContext struct in outcall-api | Implemented |
+| S013-IF-002 | Interface | P2 | Extend DockerManager::build_eval_context | Implemented (proxy uses `lookup_container_name_by_ip`) |
+| S013-IF-003 | Interface | P1 | Document `agent.name` in docs/rules.md | Implemented |
+| S013-EC-001 | Edge Case | P1 | SO_PEERCRED not available (non-Unix socket) | Implemented (proxy returns `None`) |
+| S013-EC-002 | Edge Case | P1 | Container IP not found in DockerManager | Implemented (`resolve_agent_name` returns `None`) |
+| S013-EC-003 | Edge Case | P2 | Agent name with no trailing `-N` | Implemented (regex `-[0-9]+$` only; tested) |
+| S013-EC-004 | Edge Case | P1 | Async resolution does not block rule evaluation | Implemented (one Docker label-filtered list per connection; cached) |
+| S013-SC-001 | Success | P1 | `agent.name` accessible in CEL rules | Implemented |
+| S013-SC-002 | Success | P1 | Rule `agent.name == "foobar"` matches foobar-1 and foobar-2 | Implemented (covered by `derive_agent_name` unit tests + full-test.sh 5.8/5.9) |
+| S013-SC-003 | Success | P1 | AgentContext does not break existing EvalContext consumers | Implemented (Default-derived Optional; existing tests green) |
+
+> **Implementation note (2026-05-10, release prep):** S013 was originally
+> drafted around the agent_api shim's `SO_PEERCRED` path. During v0.1
+> release prep the proxy/HTTPS path was identified as a parallel enrichment
+> site and now resolves `agent.name` via TCP peer-IP →
+> `DockerManager::lookup_container_name_by_ip` (filters on
+> `managed-by=outcalld`). Both paths converge on the same `derive_agent_name`
+> helper. FR-003 strict SO_PEERCRED in the agent_api path remains tracked in
+> [issue #4](https://github.com/Outcall-dev/outcall/issues/4) — it does not
+> block v0.1 because real apt/curl/HTTPS traffic transits the proxy path.
 
 ## Cross-Spec Dependencies
 

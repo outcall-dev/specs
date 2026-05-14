@@ -17,7 +17,8 @@
 | [S010](010-dashboard/index.md) | Dashboard | Implemented | S001-S009 |
 | [S011](011-tls-interception/index.md) | TLS Interception (optional) | Implemented | S006 |
 | [S012](012-test-coverage/index.md) | Test Coverage | Implemented | All |
-| [S013](013-agent-name-context/index.md) | Agent-Name Rule Context | Pending Implementation | S003, S008 |
+| [S013](013-agent-name-context/index.md) | Agent-Name Rule Context | Implemented | S003, S008 |
+| [S014](014-agent-boot/index.md) | Agent Boot Command | Implemented | S001, S008 |
 
 ## Startup Sequence
 

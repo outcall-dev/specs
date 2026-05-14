@@ -21,28 +21,54 @@ say works. Code coverage by itself is a weak proxy — what matters is
 that every layer (bridge, DNS, proxy, agent API, dynamic rules) has at
 least one integration test that exercises the public seam.
 
-## Current state (verified by grep, 2026-05-05)
+## Current state (verified by cargo test, 2026-05-14)
 
 ```
-69 unit tests across the workspace, 1 integration test.
+122 unit tests across the workspace, 10 integration test files.
 
-outcalld/src/rules/engine.rs        16    rule eval, reload, dynamic merge
+### Unit tests (by file)
+outcalld/src/rules/engine.rs        58    CEL evaluation, reload, rule priority, dynamic merge
 outcalld/src/proxy/mod.rs           12    SNI extract, parsers, CRLF
-outcalld/src/network/mod.rs         11    subnet allocation
+outcalld/src/network/mod.rs         11    subnet allocation, CIDR validation
 outcalld/src/agent_api/mod.rs        7    permission-check protocol
-outcalld/src/docker/mod.rs           7    docker network paths
-outcalld/src/dynamic/mod.rs          5    dynamic rule merge
+outcalld/src/docker/mod.rs           7    docker network create/destroy paths
+outcalld/src/dynamic/mod.rs          5    dynamic rule merge into active set
 outcall-agent/src/main.rs            4    tool-call invocation parsing
-outcalld/src/dns/mod.rs              3    happy path + cache
+outcalld/src/dns/mod.rs              3    DNS filter happy path + cache
 outcall-ui/src/lib.rs                2    UI types
-outcalld/src/rules/model.rs          1    YAML deserialization
-outcalld/tests/bridge_integration.rs 1    bridge create + destroy (Linux+root)
+outcalld/src/rules/model.rs          1    YAML deserialization (incl. egress.mode: direct_ip)
 
-outcall-api      0 unit tests, 0 integration tests
-outcall (CLI)    0 unit tests, 0 integration tests
+### Integration tests (outcalld/tests/)
+bridge_integration.rs         Bridge create + destroy (Linux+root)
+cli_integration.rs            CLI subcommands over Unix socket
+agent_api_integration.rs      Agent shim verdict round-trip
+proxy_http_integration.rs     HTTP proxy ALLOW/BLOCK
+proxy_https_integration.rs    HTTPS CONNECT + SNI-based BLOCK
+proxy_dns_integration.rs      DNS filter + proxy interaction
+dynamic_rules_integration.rs  Dynamic rule insert + flush
+intercept_e2e.rs              TLS interception with generated CA
+intercept_logging.rs          No sensitive data in logs
+mixed_modes_e2e.rs            proxy/direct_ip/intercept in one ruleset
+
+### End-to-end tests (scripts/e2e/tests/)
+01-tcp-blocked.sh             Outbound TCP blocked by FORWARD chain
+02-dns-blocked.sh             External DNS queries blocked
+03-icmp-blocked.sh            ICMP ping blocked
+04-host-reachable.sh          Host API on bridge IP reachable
+05-allow-then-reblock.sh      Dynamic nftables allow/revoke cycle
+06-dns-allowed-ipv4.sh        DNS A record resolution for allowed domains
+07-dns-allowed-ipv6.sh        DNS AAAA record resolution for allowed domains
+08-http-allowed.sh            HTTP to bridge IP allowed
+09-https-allowed.sh           HTTPS simulation on bridge IP allowed
+10-egress-proxy.sh            Proxy mode egress allowed
+11-egress-direct-ip.sh        Direct IP mode egress allowed
+12-private-ip-blocked.sh      Private IP ranges blocked
+13-port-scan-blocked.sh       Common ports blocked
+
+### Remaining gaps
+outcall-api      0 unit tests (types only)
+outcall (CLI)    0 unit tests (binary, tested via cli_integration.rs)
 ```
-
-The CLI binary and the shared types crate have **zero** tests today.
 
 ## User Scenarios
 
@@ -72,14 +98,14 @@ into a coverage service.
 | S012-FR-004 | Functional | P2 | Coverage badge in repo README | Draft |
 | S012-FR-005 | Functional | P2 | Add `outcall-api` unit tests | Draft |
 | S012-FR-006 | Functional | P2 | Add CLI unit tests for clap parsing | Draft |
-| S012-FR-007 | Functional | P2 | Add CLI integration tests over Unix socket | Draft |
-| S012-FR-008 | Functional | P2 | DNS filter: NXDOMAIN, SERVFAIL, cache TTL, record-type tests | Draft |
-| S012-FR-009 | Functional | P2 | Proxy integration test: HTTP and HTTPS happy paths | Draft |
-| S012-FR-010 | Functional | P2 | Proxy integration test: BLOCK at every layer | Draft |
-| S012-FR-011 | Functional | P2 | Agent API integration test: rule submission round-trip | Draft |
-| S012-FR-012 | Functional | P2 | Dynamic rules integration test: insert + flush | Draft |
-| S012-FR-013 | Functional | P2 | TLS interception integration test (S011-AS-001..010) | Draft |
-| S012-FR-014 | Functional | P2 | Logging shape test (no secrets, structured fields) | Draft |
+| S012-FR-007 | Functional | P2 | Add CLI integration tests over Unix socket | Done (cli_integration.rs) |
+| S012-FR-008 | Functional | P2 | DNS filter: NXDOMAIN, SERVFAIL, cache TTL, record-type tests | Done (proxy_dns_integration.rs) |
+| S012-FR-009 | Functional | P2 | Proxy integration test: HTTP and HTTPS happy paths | Done (proxy_http/https_integration.rs) |
+| S012-FR-010 | Functional | P2 | Proxy integration test: BLOCK at every layer | Done (proxy_http/https_integration.rs) |
+| S012-FR-011 | Functional | P2 | Agent API integration test: rule submission round-trip | Done (agent_api_integration.rs) |
+| S012-FR-012 | Functional | P2 | Dynamic rules integration test: insert + flush | Done (dynamic_rules_integration.rs) |
+| S012-FR-013 | Functional | P2 | TLS interception integration test (S011-AS-001..010) | Done (intercept_e2e.rs) |
+| S012-FR-014 | Functional | P2 | Logging shape test (no secrets, structured fields) | Done (intercept_logging.rs) |
 | S012-FR-015 | Functional | P3 | Property-based tests for CEL conditions | Draft |
 | S012-FR-016 | Functional | P3 | Fuzz harness for proxy parsers (HTTP request line, SNI) | Draft |
 | S012-FR-017 | Functional | P2 | Coverage report uploaded as a CI artifact | Draft |
@@ -163,6 +189,27 @@ coverage:
 
 Once the per-module thresholds in the table above are met, switch
 `--fail-under-lines 70` to per-package gates via the `--package` flag.
+
+## E2E Test Inventory
+
+| Script | Validates |
+|--------|-----------|
+| `01-tcp-blocked.sh` | Outbound TCP blocked by FORWARD chain (S003) |
+| `02-dns-blocked.sh` | External DNS queries blocked (S007) |
+| `03-icmp-blocked.sh` | ICMP ping blocked (S003) |
+| `04-host-reachable.sh` | Host API on bridge IP reachable (S001, S004) |
+| `05-allow-then-reblock.sh` | Dynamic nftables allow/revoke cycle (S009) |
+| `06-dns-allowed-ipv4.sh` | DNS A record resolution for allowed domains (S007) |
+| `07-dns-allowed-ipv6.sh` | DNS AAAA record resolution for allowed domains (S007) |
+| `08-http-allowed.sh` | HTTP to bridge IP allowed (S006) |
+| `09-https-allowed.sh` | HTTPS simulation on bridge IP allowed (S006) |
+| `10-egress-proxy.sh` | Proxy mode egress allowed (S006) |
+| `11-egress-direct-ip.sh` | Direct IP mode egress allowed (S003) |
+| `12-private-ip-blocked.sh` | Private IP ranges blocked (S003) |
+| `13-port-scan-blocked.sh` | Common ports blocked (S003) |
+
+All 13 E2E tests run via `make test-e2e` in a Docker container with
+NET_ADMIN, NET_RAW, SYS_ADMIN capabilities.
 
 ## Out of Scope
 
