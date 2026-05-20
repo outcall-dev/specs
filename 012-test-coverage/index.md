@@ -24,7 +24,7 @@ least one integration test that exercises the public seam.
 ## Current state (verified by cargo test, 2026-05-14)
 
 ```
-122 unit tests across the workspace, 10 integration test files.
+122 unit tests across the workspace, 10 integration test files, 17 E2E scripts.
 
 ### Unit tests (by file)
 outcalld/src/rules/engine.rs        58    CEL evaluation, reload, rule priority, dynamic merge
@@ -207,8 +207,12 @@ Once the per-module thresholds in the table above are met, switch
 | `11-egress-direct-ip.sh` | Direct IP mode egress allowed (S003) |
 | `12-private-ip-blocked.sh` | Private IP ranges blocked (S003) |
 | `13-port-scan-blocked.sh` | Common ports blocked (S003) |
+| `14-security-boundary.sh` | Host nftables cannot be bypassed from container (S015) |
+| `15-trusted-repos.sh` | Apt/trusted repository allow/block rules (S015) |
+| `16-hostname-ip-allowlist.sh` | Allowed vs blocked hostnames and IPs (S015) |
+| `17-host-cli-restrictions.sh` | Agent isolation from host resources (S015) |
 
-All 13 E2E tests run via `make test-e2e` in a Docker container with
+All 17 E2E tests run via `make test-e2e` in a Docker container with
 NET_ADMIN, NET_RAW, SYS_ADMIN capabilities.
 
 ## Out of Scope
