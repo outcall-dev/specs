@@ -1,24 +1,32 @@
 # Outcall Specifications
 
+![Outcall Banner](https://raw.githubusercontent.com/outcall-dev/assets/main/banner.png)
+
+## Badges
+
+[![CI](https://github.com/outcall-dev/specs/actions/workflows/ci.yml/badge.svg)](https://github.com/outcall-dev/specs/actions/workflows/ci.yml)
+[![Version](https://img.shields.io/badge/version-0.1.8-blue.svg)](https://github.com/outcall-dev/specs/releases/tag/v0.1.8)
+
 ## Spec Index
 
 | Spec | Feature | Status | Depends on |
 |------|---------|--------|------------|
-| [S000](000-workspace/index.md) | Workspace & Shared Types | Implemented | — |
-| [S001](001-bridge-management/index.md) | Bridge Management | Implemented | S000 |
-| [S002](002-network-management/index.md) | Network Management | Implemented | S001 |
-| [S003](003-rule-engine/index.md) | Rule Engine | Implemented | S001, S002 |
-| [S004](004-agent-api/index.md) | Agent API | Implemented | S003 |
-| [S005](005-agent-shim/index.md) | Agent Shim | Implemented | S003, S004 |
-| [S006](006-http-proxy/index.md) | HTTP Proxy | Implemented | S002, S003 |
-| [S007](007-dns-filter/index.md) | DNS Filter | Implemented | S001, S003 |
-| [S008](008-docker-manager/index.md) | Docker Manager | Implemented | S001-S007 |
-| [S009](009-dynamic-rules/index.md) | Dynamic Rules | Implemented | S001, S003 |
-| [S010](010-dashboard/index.md) | Dashboard | Implemented | S001-S009 |
-| [S011](011-tls-interception/index.md) | TLS Interception (optional) | Implemented | S006 |
-| [S012](012-test-coverage/index.md) | Test Coverage | Implemented | All |
-| [S013](013-agent-name-context/index.md) | Agent-Name Rule Context | Implemented | S003, S008 |
-| [S014](014-agent-boot/index.md) | Agent Boot Command | Implemented | S001, S008 |
+| [S000](specs/000-workspace/index.md) | Workspace & Shared Types | Implemented | — |
+| [S001](specs/001-bridge-management/index.md) | Bridge Management | Implemented | S000 |
+| [S002](specs/002-network-management/index.md) | Network Management | Implemented | S001 |
+| [S003](specs/003-rule-engine/index.md) | Rule Engine | Implemented | S001, S002 |
+| [S004](specs/004-agent-api/index.md) | Agent API | Implemented | S003 |
+| [S005](specs/005-agent-shim/index.md) | Agent Shim | Implemented | S003, S004 |
+| [S006](specs/006-http-proxy/index.md) | HTTP Proxy | Implemented | S002, S003 |
+| [S007](specs/007-dns-filter/index.md) | DNS Filter | Implemented | S001, S003 |
+| [S008](specs/008-docker-manager/index.md) | Docker Manager | Implemented | S001-S007 |
+| [S009](specs/009-dynamic-rules/index.md) | Dynamic Rules | Implemented | S001, S003 |
+| [S010](specs/010-dashboard/index.md) | Dashboard | Implemented | S001-S009 |
+| [S011](specs/011-tls-interception/index.md) | TLS Interception (optional) | Implemented | S006 |
+| [S012](specs/012-test-coverage/index.md) | Test Coverage | Implemented | All |
+| [S013](specs/013-agent-name-context/index.md) | Agent-Name Rule Context | Implemented | S003, S008 |
+| [S014](specs/014-agent-boot/index.md) | Agent Boot Command | Implemented | S001, S008 |
+| [S015](specs/015-security-boundary/index.md) | Security Boundary | Implemented | S001, S013 |
 
 ## Startup Sequence
 

@@ -76,11 +76,11 @@ No race condition in the resolution chain.
 **Expected behavior:** Agent name resolution adds ≤ 1ms to the evaluation path (in-memory
 cache lookup only). If resolution takes longer, it should timeout and set agent to `None`.
 
-**Test:** Time `build_eval_context` with warm cache — must be < 1ms on a cold run.
+**Test:** Time `build_eval_context` with warm cache — must be less than 1ms on a cold run.
 
 ---
 
-## S013-EC-008: PID does not exist when reading /proc/<PID>/status
+## S013-EC-008: PID does not exist when reading `/proc/<PID>/status`
 
 **Condition:** The PID from `SO_PEERCRED` has already exited between the accept and the
 time we read `/proc/<PID>/status`.
