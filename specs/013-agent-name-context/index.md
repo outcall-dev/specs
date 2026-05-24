@@ -5,7 +5,7 @@
 | Spec | S013 |
 | Feature | Agent-Name CEL Context |
 | Date | 2026-05-08 |
-| Status | Implemented |
+| Status | Implemented (proxy + agent_api paths both populate `agent.name`); S013-FR-003 strict-SO_PEERCRED enforcement remains partial — see [issue #4](https://github.com/outcall-dev/outcall/issues/4) |
 | Author | @marktopper |
 
 ## Overview
