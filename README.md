@@ -4,7 +4,6 @@
 
 ## Badges
 
-[![CI](https://github.com/outcall-dev/specs/actions/workflows/ci.yml/badge.svg)](https://github.com/outcall-dev/specs/actions/workflows/ci.yml)
 [![Version](https://img.shields.io/badge/version-0.1.8-blue.svg)](https://github.com/outcall-dev/specs/releases)
 
 ## Spec Index
