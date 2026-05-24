@@ -69,7 +69,7 @@ by inspecting the `agent.name` field in evaluation logs.
 > `DockerManager::lookup_container_name_by_ip` (filters on
 > `managed-by=outcalld`). Both paths converge on the same `derive_agent_name`
 > helper. FR-003 strict SO_PEERCRED in the agent_api path remains tracked in
-> [issue #4](https://github.com/Outcall-dev/outcall/issues/4) — it does not
+> [issue #4](https://github.com/outcall-dev/outcall/issues/4) — it does not
 > block v0.1 because real apt/curl/HTTPS traffic transits the proxy path.
 
 ## Cross-Spec Dependencies
