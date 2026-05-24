@@ -9,6 +9,15 @@
 
 ## Spec Index
 
+> **Note on row-level status.** The header `Status` column below is canonical
+> per-spec. Inside each spec's `index.md`, the per-requirement table (rows like
+> `S006-FR-001 | … | Draft`) has *not* been refreshed since initial drafting —
+> most rows still read `Draft` even where the feature is in production. S000,
+> S001, and S013 are up to date; the rest will be reconciled in a sweep that
+> walks the code and updates row statuses individually. For now, trust the
+> spec-header `Status` and the `## Implementation note` blocks at the bottom
+> of each spec.
+
 | Spec | Feature | Status | Depends on |
 |------|---------|--------|------------|
 | [S000](specs/000-workspace/index.md) | Workspace & Shared Types | Implemented | — |
@@ -22,7 +31,7 @@
 | [S008](specs/008-docker-manager/index.md) | Docker Manager | Implemented | S001-S007 |
 | [S009](specs/009-dynamic-rules/index.md) | Dynamic Rules | Implemented | S001, S003 |
 | [S010](specs/010-dashboard/index.md) | Dashboard | Implemented | S001-S009 |
-| [S011](specs/011-tls-interception/index.md) | TLS Interception (optional) | Implemented | S006 |
+| [S011](specs/011-tls-interception/index.md) | TLS Interception (optional) | Draft (not implemented in v0.1) | S006 |
 | [S012](specs/012-test-coverage/index.md) | Test Coverage | Implemented | All |
 | [S013](specs/013-agent-name-context/index.md) | Agent-Name Rule Context | Implemented | S003, S008 |
 | [S014](specs/014-agent-boot/index.md) | Agent Boot Command | Implemented | S001, S008 |
