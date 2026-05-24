@@ -22,7 +22,7 @@ As a developer, I want to boot an isolated AI agent container from any project f
 ## Acceptance Scenarios
 
 ### AS-001: Basic Agent Boot
-**Given** I'm in a project folder at `/home/mark/my-project`
+**Given** I'm in a project folder at `~/my-project`
 **When** I run `outcall agent`
 **Then** an agent container named `my-project-agent` boots on the outcall bridge
 **And** the current directory is mounted at `/workspace` inside the container
