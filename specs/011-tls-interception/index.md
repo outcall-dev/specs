@@ -5,7 +5,7 @@
 | Spec | S011 |
 | Feature | TLS Interception (optional MITM) |
 | Date | 2026-05-05 |
-| Status | Draft (spec frozen; not yet implemented — threat-model.md notes TLS interception is "intentionally not implemented" in v0.1, so `http.method` / `http.path` / `http.body` are not visible inside HTTPS tunnels). All 63 FR/IF/EC rows below are `Draft`. |
+| Status | Draft (spec frozen; not yet implemented — threat-model.md notes TLS interception is "intentionally not implemented" in v0.1, so `http.method` / `http.path` / `http.body` are not visible inside HTTPS tunnels). All 63 requirement rows below (FR/AS/IF/EC/SC) are `Draft`. |
 | Author | @marktopper |
 
 ## Overview
