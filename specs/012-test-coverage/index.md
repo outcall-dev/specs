@@ -211,8 +211,9 @@ Once the per-module thresholds in the table above are met, switch
 | `15-trusted-repos.sh` | Apt/trusted repository allow/block rules (S015) |
 | `16-hostname-ip-allowlist.sh` | Allowed vs blocked hostnames and IPs (S015) |
 | `17-host-cli-restrictions.sh` | Agent isolation from host resources (S015) |
+| `18-ipv6-blocked.sh` | Outbound IPv6 (ICMPv6) blocked by FORWARD chain (S003) |
 
-All 17 E2E tests run via `make test-e2e` in a Docker container with
+All 18 E2E tests run via `make test-e2e` in a Docker container with
 NET_ADMIN, NET_RAW, SYS_ADMIN capabilities.
 
 ## Out of Scope
