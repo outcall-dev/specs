@@ -15,4 +15,4 @@
 | S003-SC-011 | Rules with `log: true` produce structured audit log entries containing rule ID, decision, timestamp, and context summary. |
 | S003-SC-012 | Existing `outcall bridge *` and `outcall network *` commands continue to work unchanged. |
 | S003-SC-013 | Agent rule requests are queued as `pending` and do not affect evaluation until a host operator approves them. |
-| S003-SC-014 | All five context variable namespaces (`network`, `http`, `dns`, `docker`, `run`) are accessible in CEL expressions. |
+| S003-SC-014 | All six context variable namespaces (`network`, `http`, `dns`, `docker`, `run`, `agent`) are accessible in CEL expressions. |
