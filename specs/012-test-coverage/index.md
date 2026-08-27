@@ -5,7 +5,7 @@
 | Spec | S012 |
 | Feature | Test coverage targets and integration test inventory |
 | Date | 2026-05-05 |
-| Status | Implemented |
+| Status | In Progress |
 | Author | @marktopper |
 
 ## Overview
@@ -21,22 +21,22 @@ say works. Code coverage by itself is a weak proxy — what matters is
 that every layer (bridge, DNS, proxy, agent API, dynamic rules) has at
 least one integration test that exercises the public seam.
 
-## Current state (verified by cargo test, 2026-05-14)
+## Current state (verified 2026-08-20)
 
 ```
-122 unit tests across the workspace, 10 integration test files, 17 E2E scripts.
+184 non-ignored tests on macOS across unit, binary, API, CLI, and portable
+integration targets. Linux CI exercises additional target-gated daemon tests.
 
-### Unit tests (by file)
-outcalld/src/rules/engine.rs        58    CEL evaluation, reload, rule priority, dynamic merge
-outcalld/src/proxy/mod.rs           12    SNI extract, parsers, CRLF
-outcalld/src/network/mod.rs         11    subnet allocation, CIDR validation
-outcalld/src/agent_api/mod.rs        7    permission-check protocol
-outcalld/src/docker/mod.rs           7    docker network create/destroy paths
-outcalld/src/dynamic/mod.rs          5    dynamic rule merge into active set
-outcall-agent/src/main.rs            4    tool-call invocation parsing
-outcalld/src/dns/mod.rs              3    DNS filter happy path + cache
-outcall-ui/src/lib.rs                2    UI types
-outcalld/src/rules/model.rs          1    YAML deserialization (incl. egress.mode: direct_ip)
+Portable llvm-cov baseline (macOS):
+  Lines:     59.86%
+  Regions:   57.30%
+  Functions: 54.19%
+
+Application controls:
+  make coverage    writes target/coverage/lcov.info and enforces 50% lines
+  make spec-check  validates S000-S015 implementation/test mappings
+  CI coverage job  runs on Linux and uploads the LCOV artifact
+```
 
 ### Integration tests (outcalld/tests/)
 bridge_integration.rs         Bridge create + destroy (Linux+root)
@@ -46,28 +46,16 @@ proxy_http_integration.rs     HTTP proxy ALLOW/BLOCK
 proxy_https_integration.rs    HTTPS CONNECT + SNI-based BLOCK
 proxy_dns_integration.rs      DNS filter + proxy interaction
 dynamic_rules_integration.rs  Dynamic rule insert + flush
-intercept_e2e.rs              TLS interception with generated CA
-intercept_logging.rs          No sensitive data in logs
-mixed_modes_e2e.rs            proxy/direct_ip/intercept in one ruleset
-
-### End-to-end tests (scripts/e2e/tests/)
-01-tcp-blocked.sh             Outbound TCP blocked by FORWARD chain
-02-dns-blocked.sh             External DNS queries blocked
-03-icmp-blocked.sh            ICMP ping blocked
-04-host-reachable.sh          Host API on bridge IP reachable
-05-allow-then-reblock.sh      Dynamic nftables allow/revoke cycle
-06-dns-allowed-ipv4.sh        DNS A record resolution for allowed domains
-07-dns-allowed-ipv6.sh        DNS AAAA record resolution for allowed domains
-08-http-allowed.sh            HTTP to bridge IP allowed
-09-https-allowed.sh           HTTPS simulation on bridge IP allowed
-10-egress-proxy.sh            Proxy mode egress allowed
-11-egress-direct-ip.sh        Direct IP mode egress allowed
-12-private-ip-blocked.sh      Private IP ranges blocked
-13-port-scan-blocked.sh       Common ports blocked
+intercept_e2e.rs              No-CA rejection and non-intercept startup only
+intercept_logging.rs          MISSING
+mixed_modes_e2e.rs            Mixed-mode validation for implemented modes
 
 ### Remaining gaps
-outcall-api      0 unit tests (types only)
-outcall (CLI)    0 unit tests (binary, tested via cli_integration.rs)
+outcall-agent    Portable baseline remains below the 70% target.
+outcall CLI      Shell/Docker adapters remain below the 60% target locally.
+S011             Tests cover configuration rejection, not full interception.
+logging          The required intercept_logging.rs test does not exist yet.
+thresholds       CI has a workspace regression floor; per-module gates remain.
 ```
 
 ## User Scenarios
@@ -92,23 +80,23 @@ into a coverage service.
 
 | ID | Type | Priority | Title | Status |
 |----|------|----------|-------|--------|
-| S012-FR-001 | Functional | P2 | `cargo llvm-cov` produces a workspace report | Draft |
-| S012-FR-002 | Functional | P2 | Workspace coverage targets enforced in CI | Draft |
-| S012-FR-003 | Functional | P2 | Per-crate / per-module thresholds | Draft |
+| S012-FR-001 | Functional | P2 | `cargo llvm-cov` produces a workspace report | Done (`make coverage`) |
+| S012-FR-002 | Functional | P2 | Workspace coverage targets enforced in CI | Done (50% line regression floor) |
+| S012-FR-003 | Functional | P2 | Per-crate / per-module thresholds | In progress |
 | S012-FR-004 | Functional | P2 | Coverage badge in repo README | Draft |
-| S012-FR-005 | Functional | P2 | Add `outcall-api` unit tests | Draft |
-| S012-FR-006 | Functional | P2 | Add CLI unit tests for clap parsing | Draft |
+| S012-FR-005 | Functional | P2 | Add `outcall-api` unit tests | Done (58 API tests) |
+| S012-FR-006 | Functional | P2 | Add CLI unit tests for clap parsing | Done (42 CLI integration tests) |
 | S012-FR-007 | Functional | P2 | Add CLI integration tests over Unix socket | Done (cli_integration.rs) |
 | S012-FR-008 | Functional | P2 | DNS filter: NXDOMAIN, SERVFAIL, cache TTL, record-type tests | Done (proxy_dns_integration.rs) |
 | S012-FR-009 | Functional | P2 | Proxy integration test: HTTP and HTTPS happy paths | Done (proxy_http/https_integration.rs) |
 | S012-FR-010 | Functional | P2 | Proxy integration test: BLOCK at every layer | Done (proxy_http/https_integration.rs) |
 | S012-FR-011 | Functional | P2 | Agent API integration test: rule submission round-trip | Done (agent_api_integration.rs) |
 | S012-FR-012 | Functional | P2 | Dynamic rules integration test: insert + flush | Done (dynamic_rules_integration.rs) |
-| S012-FR-013 | Functional | P2 | TLS interception integration test (S011-AS-001..010) | Done (intercept_e2e.rs) |
-| S012-FR-014 | Functional | P2 | Logging shape test (no secrets, structured fields) | Done (intercept_logging.rs) |
+| S012-FR-013 | Functional | P2 | TLS interception integration test (S011-AS-001..010) | Partial (configuration checks only) |
+| S012-FR-014 | Functional | P2 | Logging shape test (no secrets, structured fields) | Draft (test file missing) |
 | S012-FR-015 | Functional | P3 | Property-based tests for CEL conditions | Draft |
 | S012-FR-016 | Functional | P3 | Fuzz harness for proxy parsers (HTTP request line, SNI) | Draft |
-| S012-FR-017 | Functional | P2 | Coverage report uploaded as a CI artifact | Draft |
+| S012-FR-017 | Functional | P2 | Coverage report uploaded as a CI artifact | Done (`coverage-lcov`) |
 
 ## Coverage targets
 
@@ -127,8 +115,9 @@ into a coverage service.
 | `outcall` CLI | ≥ 60 % | clap parsing + output formatting. |
 | `outcall-agent` shim | ≥ 70 % | Tool-call parsing + verdict handling. |
 
-These are floors, not ceilings. Anything below the floor for the
-relevant subsystem fails CI.
+These are target floors, not current claims. CI currently enforces a 50%
+workspace line-coverage regression floor. S012-FR-003 remains open until the
+table is enforced per package or module.
 
 ## Required integration test files
 
@@ -136,7 +125,7 @@ S012-FR-007.a `outcalld/tests/cli_integration.rs` — spawns `outcalld` on
 an ephemeral socket, then runs the `outcall` binary against it. Asserts
 on exit codes and stdout for every subcommand group.
 
-S012-FR-008.a `outcalld/tests/dns_filter_integration.rs` — binds the DNS
+S012-FR-008.a `outcalld/tests/proxy_dns_integration.rs` — binds the DNS
 filter to an ephemeral UDP port, sends queries via `hickory-resolver`,
 asserts NXDOMAIN for blocked, NoError for allowed, and that the cache
 respects TTL.
@@ -148,17 +137,16 @@ ALLOW forwards and BLOCK returns 403.
 S012-FR-009.b `outcalld/tests/proxy_https_integration.rs` — same but
 HTTPS via CONNECT, asserts SNI-based ALLOW/BLOCK without decryption.
 
-S012-FR-013.a `outcalld/tests/intercept_e2e.rs` — exercises S011's
-acceptance scenarios end-to-end with a generated CA and a local TLS
-echo server.
+S012-FR-013.a `outcalld/tests/intercept_e2e.rs` — currently verifies that an
+intercept rule is rejected without a CA and that non-intercept startup remains
+healthy. Full generated-CA interception scenarios are still required.
 
 S012-FR-013.b `outcalld/tests/intercept_logging.rs` — asserts no
 sensitive data leaks into structured logs (Authorization headers,
 Bearer tokens, cookie values, body content).
 
-S012-FR-013.c `outcalld/tests/mixed_modes_e2e.rs` — single daemon
-serving `proxy`, `direct_ip`, and `intercept` rules from one rule set;
-each behaves per its respective spec.
+S012-FR-013.c `outcalld/tests/mixed_modes_e2e.rs` — mixed-mode validation for
+the modes currently implemented. It does not close full S011 acceptance.
 
 S012-FR-011.a `outcalld/tests/agent_api_integration.rs` — agent shim
 asks for a verdict over the agent socket; daemon evaluates against the
@@ -170,25 +158,26 @@ flush, verify it disappears.
 
 ## CI gating
 
-S012-FR-002 [P2] Add a `coverage` job to `.github/workflows/ci.yml`:
+S012-FR-002 [P2] The application repository includes a `coverage` job in
+`.github/workflows/ci.yml`:
 
 ```yaml
 coverage:
   name: cargo llvm-cov
   runs-on: ubuntu-latest
   steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
     - uses: dtolnay/rust-toolchain@stable
       with: { components: llvm-tools-preview }
     - uses: taiki-e/install-action@cargo-llvm-cov
-    - run: cargo llvm-cov --workspace --all-targets --lcov --output-path lcov.info
-    - run: cargo llvm-cov report --fail-under-lines 70
+    - run: make coverage
     - uses: actions/upload-artifact@v4
-      with: { name: coverage, path: lcov.info }
+      with: { name: coverage-lcov, path: target/coverage/lcov.info }
 ```
 
-Once the per-module thresholds in the table above are met, switch
-`--fail-under-lines 70` to per-package gates via the `--package` flag.
+`make coverage` currently fails below 50% workspace line coverage. Once the
+per-module targets above are met on Linux CI, add per-package gates and ratchet
+the workspace floor without lowering either threshold later.
 
 ## E2E Test Inventory
 

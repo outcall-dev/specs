@@ -16,7 +16,7 @@ S001-FR-005 [P1] The base ruleset **MUST** enforce a default-BLOCK policy: all f
 
 S001-FR-006 [P1] The base ruleset **MUST** accept packets in `established` or `related` connection tracking states, so responses to allowed outbound connections can return.
 
-S001-FR-007 [P1] The nftables chain policy **MUST** be `accept` (not `drop`) so that forwarded traffic on interfaces unrelated to the bridge is not affected.
+S001-FR-007 [P1] The nftables forward-chain policy **MUST** be `drop`. An explicit rule **MUST** accept packets whose input and output interfaces are both unrelated to the managed bridge so Outcall does not affect other forwarded traffic.
 
 S001-FR-008 [P1] Before applying rules, `outcalld` **MUST** delete any existing `inet outcall` table (clean-slate). Deletion failure (table does not exist) **MUST** be silently ignored.
 
@@ -27,7 +27,7 @@ S001-FR-009.a Delete the `inet outcall` nftables table (warn on failure, do not 
 S001-FR-009.b Bring the bridge interface down.
 S001-FR-009.c Delete the bridge interface via netlink.
 
-S001-FR-010 [P1] When `outcalld` receives SIGINT (Ctrl-C) or SIGTERM, it **MUST** execute the teardown sequence before exiting.
+S001-FR-010 [P1] When `outcalld` receives SIGINT (Ctrl-C) or SIGTERM, it **MUST NOT** execute the bridge teardown sequence. It **MUST** atomically replace the active `inet outcall` table with the strict base policy, removing dynamic direct-egress grants while preserving the bridge interface so managed containers that outlive the daemon remain fail closed. Teardown occurs only through the explicit `POST /api/v1/bridge/down` operation after managed workloads have stopped.
 
 ### Status
 
@@ -74,7 +74,7 @@ S001-FR-022 [P1] On startup, `outcalld` **MUST** remove any stale socket file at
 
 S001-FR-023 [P1] `outcalld` **MUST** bind a `tokio::net::UnixListener` at the socket path and serve the axum router over it.
 
-S001-FR-024 [P1] On shutdown, `outcalld` **MUST** remove the socket file after teardown completes.
+S001-FR-024 [P1] On shutdown, `outcalld` **MUST** stop its listeners and remove the host and agent socket files while leaving bridge enforcement active.
 
 ### CLI transport
 

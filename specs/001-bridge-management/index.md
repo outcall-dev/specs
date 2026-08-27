@@ -42,10 +42,10 @@ S001-US-003 [P1] As a host operator, I want to tear down the bridge so that I ca
 | S001-FR-004 | Functional | P1 | Base nftables ruleset | Implemented |
 | S001-FR-005 | Functional | P1 | Default-BLOCK policy | Implemented |
 | S001-FR-006 | Functional | P1 | Established/related connections | Implemented |
-| S001-FR-007 | Functional | P1 | Chain policy accept | Implemented |
+| S001-FR-007 | Functional | P1 | Forward policy drop with unrelated-traffic exemption | Implemented |
 | S001-FR-008 | Functional | P1 | Clean-slate rule application | Implemented |
 | S001-FR-009 | Functional | P1 | Teardown sequence | Implemented |
-| S001-FR-010 | Functional | P1 | Daemon shutdown cleanup | Implemented |
+| S001-FR-010 | Functional | P1 | Daemon shutdown preserves enforcement | Implemented |
 | S001-FR-011 | Functional | P1 | Status endpoint (fresh check) | Implemented |
 | S001-FR-012 | Functional | P1 | Configurable bridge name | Implemented |
 | S001-FR-013 | Functional | P1 | Default bridge name constant | Implemented |
@@ -69,7 +69,7 @@ S001-US-003 [P1] As a host operator, I want to tear down the bridge so that I ca
 | S001-AS-003 | Acceptance | P1 | Status when up | Implemented |
 | S001-AS-004 | Acceptance | P1 | Status when down | Implemented |
 | S001-AS-005 | Acceptance | P1 | Teardown happy path | Implemented |
-| S001-AS-006 | Acceptance | P1 | Daemon shutdown tears down | Implemented |
+| S001-AS-006 | Acceptance | P1 | Daemon shutdown preserves enforcement | Implemented |
 | S001-AS-007 | Acceptance | P1 | Bridge already exists (attach) | Implemented |
 | S001-AS-008 | Acceptance | P1 | CLI bridge status | Implemented |
 | S001-AS-009 | Acceptance | P1 | CLI bridge up | Implemented |

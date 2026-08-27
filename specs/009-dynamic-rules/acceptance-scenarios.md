@@ -35,3 +35,20 @@
 **When** `my-agent` tries to reach `evil.com:80` (no allow rule)
 **Then** the traffic is blocked by the base drop rules
 **And** the dynamic allow rule for github does not affect other destinations.
+
+### S009-AS-006 Failed deletion restores deny policy [P1]
+
+**Given** multiple containers have active dynamic allow rules
+**And** deleting one nftables handle fails
+**When** a container cleanup or operator flush runs
+**Then** `outcalld` reapplies the complete base policy
+**And** no dynamic allow rules remain active
+**And** the in-memory active-rule list is cleared only after that reset succeeds.
+
+### S009-AS-007 Temporary rule expires [P1]
+
+**Given** `my-agent` has a dynamic rule with `expires_in_secs: 2`
+**When** the deadline and the next one-second sweep pass
+**Then** the corresponding nftables handle is removed
+**And** the rule no longer appears in `GET /api/v1/rules/active`
+**And** failure to delete the handle restores the complete base policy.

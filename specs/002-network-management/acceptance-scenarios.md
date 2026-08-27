@@ -122,7 +122,21 @@
 **Then** the CLI prints `Error: cannot connect to outcalld at <socket> -- is it running?`
 **And** the command exits with code 1.
 
-### S002-AS-014 Docker not available [P1]
+### S002-AS-014 Forged prefixed network is rejected [P1]
+
+**Given** Docker has a network named `outcall-staging`
+**And** it is not a bridge network backed by the configured Outcall bridge
+**When** the operator creates, inspects, or destroys `staging`
+**Then** `outcalld` returns an identity error
+**And** does not remove or treat that network as managed.
+
+### S002-AS-015 Overlapping explicit subnet is rejected [P1]
+
+**Given** a Docker network uses `10.200.8.0/23`
+**When** the operator requests `10.200.9.0/24`
+**Then** `outcalld` rejects the request before Docker network creation.
+
+### S002-AS-016 Docker not available [P1]
 
 **Given** the `outcalld` daemon is running
 **And** the Docker Engine is not reachable

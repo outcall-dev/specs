@@ -8,7 +8,7 @@ S007-FR-002 [P1] The DNS server **MUST** listen on both UDP and TCP on the same 
 
 S007-FR-003 [P1] The DNS server **MUST** run as a Tokio task inside `outcalld`. There **MUST NOT** be a separate process.
 
-S007-FR-004 [P1] The DNS server **MUST NOT** start until the bridge is up. If the bridge is not initialized when `outcalld` starts, the DNS task **MUST** wait for the bridge-up event before binding.
+S007-FR-004 [P1] The DNS server **MUST NOT** start until the bridge is up. Daemon startup **MUST** initialize and verify the bridge before binding DNS; bridge initialization failure **MUST** abort startup rather than leave a running daemon without enforced DNS.
 
 S007-FR-005 [P1] On daemon shutdown, the DNS server **MUST** stop accepting new queries and **MUST** allow in-flight queries up to 5 seconds to complete before forcibly dropping them. All sockets **MUST** be closed.
 
@@ -41,7 +41,7 @@ S007-FR-010.d No answer section records
 
 ### Upstream forwarding
 
-S007-FR-011 [P1] When the rule engine returns an ALLOW decision, `outcalld` **MUST** forward the original DNS query to the configured upstream resolver and return the upstream response to the agent unmodified.
+S007-FR-011 [P1] When the rule engine returns an ALLOW decision, `outcalld` **MUST** forward the query to the configured upstream resolver, apply the address-safety policy, and return permitted answer records to the agent.
 
 S007-FR-012 [P1] `outcalld` **MUST** accept a `--dns-upstream` flag to configure upstream DNS resolvers. The flag accepts comma-separated `IP:port` values (e.g., `--dns-upstream 8.8.8.8:53,8.8.4.4:53`). If only an IP is provided, port 53 is assumed.
 
@@ -110,7 +110,7 @@ S007-FR-032 [P1] If the rule engine returns an error or is unavailable, the DNS 
 
 S007-FR-033 [P2] Queries for `.local` domains (mDNS) **MUST** be returned as NXDOMAIN without forwarding to upstream resolvers.
 
-S007-FR-034 [P2] When an ALLOW verdict is returned and the upstream resolves a public hostname to an RFC 1918 address (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16) or loopback (127.0.0.0/8), `outcalld` **MUST** log a warning (potential DNS rebinding). `outcalld` **MAY** be configured to treat such responses as BLOCK via a `--dns-rebind-protection` flag (default: warn-only).
+S007-FR-034 [P1] Address answers **MUST** pass through the shared restricted-address policy on upstream responses and cache hits. Loopback, private, link-local, reserved, documentation, multicast, CGNAT, IPv4-embedded IPv6, and equivalent restricted addresses **MUST** be removed unless the matched rule sets `egress.allow_private_ips: true`. If no permitted address remains, `outcalld` **MUST** return SERVFAIL and count the query as blocked. Raw upstream records may be cached, but current rule policy **MUST** be reapplied on every query.
 
 ### Rule-configurable egress mode
 
@@ -118,6 +118,10 @@ S007-FR-035 [P1] DNS allow rules **MAY** include an optional `egress` block with
 
 S007-FR-036 [P1] When `egress.mode` is `proxy`, `outcalld` **MUST NOT** open direct nftables L3/L4 allow rules from DNS results. This mode is the recommended default for shared IP/CDN safety.
 
-S007-FR-037 [P1] When `egress.mode` is `direct_ip`, `outcalld` **MUST** derive IPv4 and IPv6 destinations from the allowed DNS response's A and AAAA records respectively, and insert per-container dynamic nftables allow rules for TCP destination ports listed in `egress.ports`. IPv4 destinations use `ip saddr/ip daddr` rules; IPv6 destinations use `ip6 saddr/ip6 daddr` rules. IPv4 source addresses used in IPv6 rules are expressed as IPv4-mapped IPv6 addresses (`::ffff:x.x.x.x`).
+S007-FR-037 [P1] When `egress.mode` is `direct_ip`, `outcalld` **MUST** derive destinations from the allowed DNS response and insert per-container dynamic nftables allow rules for TCP destination ports listed in `egress.ports`. A destination **MUST** use the same address family as the verified source address: IPv4 sources use A answers and `ip saddr/ip daddr`; IPv6 sources use AAAA answers and `ip6 saddr/ip6 daddr`. Mismatched-family answers **MUST NOT** create a grant. The v1 managed bridge is IPv4-only and drops IPv6, so current agent containers receive direct grants only from A answers.
 
 S007-FR-038 [P2] If `egress.mode` is `direct_ip` and `egress.ports` is omitted or empty, `outcalld` **MUST** default to `[80, 443]`.
+
+S007-FR-039 [P1] Before rule evaluation, `outcalld` **MUST** resolve the DNS source IP to a currently managed Outcall container and populate `agent.name`. Unknown peers and Docker identity lookup failures **MUST** receive REFUSED (RCODE 5). `direct_ip` rules **MUST NOT** be created without a verified managed identity.
+
+S007-FR-040 [P1] Every DNS-derived `direct_ip` grant **MUST** expire after the minimum positive TTL in the allowed answer, capped by `DNS_CACHE_MAX_TTL_SECS`. Zero-TTL or empty answers **MUST NOT** create a grant. A repeated allowed answer **MAY** renew an already-temporary equivalent grant but **MUST NOT** convert an explicit persistent host-operator grant into a temporary one.

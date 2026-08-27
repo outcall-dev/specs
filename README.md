@@ -2,20 +2,13 @@
 
 ![Outcall Banner](https://raw.githubusercontent.com/outcall-dev/assets/main/banner.png)
 
-## Badges
-
-[![Version](https://img.shields.io/badge/version-0.1.8-blue.svg)](https://github.com/outcall-dev/specs/releases)
+[![Specs CI](https://github.com/outcall-dev/specs/actions/workflows/ci.yml/badge.svg)](https://github.com/outcall-dev/specs/actions/workflows/ci.yml)
 
 ## Spec Index
 
-> **Note on row-level status.** The header `Status` column below is canonical
-> per-spec. Inside each spec's `index.md`, the per-requirement table (rows like
-> `S006-FR-001 | … | Draft`) has *not* been refreshed since initial drafting —
-> most rows still read `Draft` even where the feature is in production. S000,
-> S001, and S013 are up to date; the rest will be reconciled in a sweep that
-> walks the code and updates row statuses individually. For now, trust the
-> spec-header `Status` and the `## Implementation note` blocks at the bottom
-> of each spec.
+The per-requirement status tables are authoritative. `Draft` means that the
+requirement is not implemented or has not yet been verified by executable
+evidence, even when the broader subsystem is available.
 
 | Spec | Feature | Status | Depends on |
 |------|---------|--------|------------|
@@ -38,41 +31,53 @@
 
 ## Startup Sequence
 
-`outcalld` initializes subsystems in dependency order. Each subsystem waits
-for its prerequisites before starting. Failure at any P1 step aborts startup.
+`outcalld` initializes its security boundary before serving either API. Invalid
+rules, socket conflicts, bridge-policy failures, and required DNS/proxy bind
+failures abort startup.
 
 ```
-1. Bridge (S001)          — create/attach bridge, apply nftables base rules
+1. Rule Engine (S003)     — load and validate YAML rules
    ↓
-2. Rule Engine (S003)     — load YAML rule files, validate CEL expressions
+2. API sockets            — bind host and agent Unix sockets without serving
    ↓
-3. Network (S002)         — create default Docker network, assign bridge gateway IP
-   ↓ (parallel)
-4a. DNS Filter (S007)     — bind DNS server to bridge gateway IP (from S002)
-4b. HTTP Proxy (S006)     — bind proxy to bridge gateway IP (from S002)
+3. Bridge (S001)          — create/validate bridge, apply fail-closed base policy
    ↓
-5. Docker Manager (S008)  — initialize Docker client, ready to create containers
+4. Docker Manager (S008)  — connect to Docker; degraded mode is allowed
    ↓
-6. Host API               — bind unix socket, start serving
+5. Dynamic Rules (S009)   — start lifecycle and expiry watchers
    ↓
-7. Agent API (S004)       — bind agent socket, ready for agent check-ins
+6. DNS Filter (S007)      — bind the managed resolver
+   ↓
+7. HTTP Proxy (S006)      — bind unless explicitly disabled
+   ↓
+8. Network (S002)         — initialize managed network allocation
+   ↓
+9. Host and Agent APIs    — begin serving the pre-bound sockets
 ```
 
-### Shutdown sequence (reverse order)
+### Shutdown Sequence
 
 ```
-7. Agent API              — stop accepting new requests, drain in-flight
-6. Host API               — stop accepting new requests
-5. Docker Manager         — (containers are NOT stopped — they outlive the daemon)
-4. DNS/Proxy              — stop listeners
-3. Network                — (networks are NOT removed — they outlive the daemon)
-2. Rule Engine            — (no cleanup needed)
-1. Bridge (S001)          — flush nftables table, delete bridge interface
+1. Host and Agent APIs    — stop serving requests
+2. HTTP Proxy and DNS     — stop and join listener tasks
+3. Dynamic Rules (S009)   — stop watchers and flush temporary grants
+4. Bridge (S001)          — reapply the fail-closed base policy
+5. Background managers    — stop Docker and netlink watcher tasks
+6. API sockets            — remove host and agent socket files
 ```
 
-Note: networks and containers intentionally outlive the daemon (S002-EC-010).
-The bridge and nftables rules are torn down so that traffic is no longer
-filtered — containers lose connectivity until the daemon restarts.
+Networks and containers intentionally outlive the daemon (S002-EC-010). Normal
+shutdown preserves the bridge and nftables table, removes dynamic grants, and
+leaves managed container egress blocked until the daemon services restart.
+
+## Validation
+
+Validate requirement IDs, status values, duplicate definitions, and index
+coverage before committing spec changes:
+
+```sh
+scripts/check-spec-indexes.sh
+```
 
 ## Design Principles
 
@@ -80,4 +85,4 @@ filtered — containers lose connectivity until the daemon restarts.
 2. **Fail closed** — if any subsystem is unavailable, the answer is BLOCK/deny/SERVFAIL/exit-5.
 3. **Host-only management** — bridge, network, rule, and container management happens on `host.sock` only.
 4. **Agent isolation** — containers see only `agent.sock`. No access to host API, bridge, or nftables.
-5. **Single binary** — everything runs as Tokio tasks in `outcalld`. No separate processes.
+5. **Single daemon process** — daemon subsystems run as owned Tokio tasks in `outcalld`.

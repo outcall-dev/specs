@@ -203,4 +203,4 @@ rules:
 ```
 
  - `mode: proxy` keeps enforcement at L7 (proxy/SNI path), with no direct L3/L4 hole.
- - `mode: direct_ip` inserts dynamic nftables allows from resolved IPv4 (A) and IPv6 (AAAA) answers. IPv4 rules use `ip saddr/daddr`; IPv6 rules use `ip6 saddr/daddr`. When an IPv4 source address is used in an IPv6 rule context, it is expressed as an IPv4-mapped IPv6 address (`::ffff:x.x.x.x`).
+- `mode: direct_ip` inserts temporary dynamic nftables allows only for answers matching the verified source address family. IPv4 sources use A answers and `ip saddr/daddr`; IPv6 sources use AAAA answers and `ip6 saddr/daddr`. The current managed bridge is IPv4-only, so AAAA answers do not create direct grants. Each grant expires after the answer's minimum positive TTL, capped at 300 seconds.

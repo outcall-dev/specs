@@ -38,12 +38,16 @@
 **And** `ip link show outcall0` fails (interface gone)
 **And** `nft list table inet outcall` fails (table gone).
 
-### S001-AS-006 Daemon shutdown tears down [P1]
+### S001-AS-006 Daemon shutdown preserves enforcement [P1]
 
 **Given** `outcalld` is running with the bridge up
-**When** `outcalld` receives SIGINT (Ctrl-C)
-**Then** the bridge and nftables rules are torn down before the process exits
-**And** the unix socket file is removed.
+**And** a managed container remains attached to the bridge
+**When** `outcalld` receives SIGINT or SIGTERM
+**Then** dynamic direct-egress grants are removed
+**And** the bridge and strict base nftables policy remain active after the process exits
+**And** new direct traffic from the managed container remains blocked
+**And** the unix socket files are removed
+**And** restarting `outcalld` re-attaches to the bridge and replaces the ruleset idempotently.
 
 ### S001-AS-007 Bridge already exists: attach [P1]
 

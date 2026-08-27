@@ -44,7 +44,7 @@
 ### S004-AS-006 Rule request: submitted [P2]
 
 **Given** the agent has checked in and holds a valid session token
-**When** the agent sends `POST /v1/requests/rules` with a description, condition, and action
+**When** the agent sends `POST /v1/requests/rules` with a complete valid `rule_file`
 **Then** the response contains a rule request ID and status `"pending"`
 **And** the HTTP status is 201.
 
@@ -68,7 +68,7 @@
 **Given** the agent has checked in
 **When** the agent sends a permission request with `action_type`, `target`, and `metadata`
 **Then** `outcalld` forwards all context variables to the rule engine (S003) for evaluation
-**And** the `metadata` key-value pairs are available as match variables in rule conditions.
+**And** the `metadata` key-value pairs are available under `run.context` in rule conditions.
 
 ### S004-AS-010 Rate limit enforced [P2]
 

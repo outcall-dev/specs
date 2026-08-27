@@ -134,3 +134,12 @@
 **Then** `outcalld` evaluates with `dns.record_type == "MX"`
 **And** the query is forwarded to the upstream
 **And** the MX response is returned to the container.
+
+### S007-AS-016 Direct-IP grants follow DNS TTL [P1]
+
+**Given** an IPv4 managed container resolves an allowed `direct_ip` hostname
+**And** the permitted A answers have a minimum TTL of 60 seconds
+**When** `outcalld` creates the corresponding destination-port grants
+**Then** each grant reports no more than 60 seconds remaining
+**And** AAAA answers create no grant for the IPv4 source
+**And** the nftables handles are removed within one sweep interval after expiry.

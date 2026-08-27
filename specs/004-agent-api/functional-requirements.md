@@ -4,7 +4,7 @@
 
 S004-FR-001 [P1] `outcalld` **MUST** create the `agent.sock` Unix domain socket. The agent process **MUST NOT** create, bind, or modify the socket. The socket is a server socket owned by `outcalld`.
 
-S004-FR-002 [P1] The default socket path **MUST** be `/run/outcall/agent.sock`, defined as `DEFAULT_AGENT_SOCKET` in `outcall-api`. The path **MUST** be configurable via `outcalld --agent-socket <path>`.
+S004-FR-002 [P1] The default socket path **MUST** be `/run/outcall/agent.sock`, defined as `DEFAULT_AGENT_SOCKET` in `outcall-api`. The path **MUST** be configurable via `outcalld --agent-socket <path>`; `--agent-socket-host-path` remains a compatibility alias.
 
 S004-FR-003 [P1] `outcalld` **MUST** remove the socket file on clean shutdown (SIGINT, SIGTERM). If the socket file already exists at startup, `outcalld` **MUST** remove it before binding (stale socket recovery).
 
@@ -64,19 +64,13 @@ S004-FR-014.c Check-in: max 1 successful check-in per container lifecycle. Subse
 
 ### Timeout behavior
 
-S004-FR-015 [P1] Permission requests **MUST** time out after a configurable duration (default: 5 seconds). If rule evaluation does not complete within the timeout, the agent API **MUST** return a deny verdict with reason `"evaluation timeout"`. The default **MUST** be configurable via `outcalld --agent-timeout <duration>`. Note: this is the server-side evaluation timeout — it returns a deny verdict to the shim. The shim (S005-FR-014) has a separate, longer socket-level timeout (default 30s) that detects daemon unreachability and triggers exit code 5. These are intentionally different layers.
+S004-FR-015 [P1] Permission requests **MUST** time out after a configurable duration (default: 5 seconds). If rule evaluation does not complete within the timeout, the agent API **MUST** return a deny verdict with reason `"evaluation timeout"`. The timeout in seconds **MUST** be configurable via `outcalld --agent-timeout <seconds>`; `--agent-timeout-secs` remains a compatibility alias. The shim (S005-FR-014) has a separate 30-second socket timeout that detects daemon unreachability and triggers exit code 5.
 
 ### Observability
 
-S004-FR-016 [P1] All agent API operations (check-in, permission check, rule request, status query) **MUST** emit structured log events via the `tracing` crate, including the container ID and action type.
+S004-FR-016 [P1] All agent API operations (check-in, permission check, rule request, status query) **MUST** emit structured log events via `tracing`, including the trusted container ID and the action type where that operation has one.
 
-S004-FR-017 [P1] Agent API errors **MUST** use typed error variants (`AgentApiError`) via `thiserror`:
-S004-FR-017.a `SocketBind` -- failed to bind the agent socket.
-S004-FR-017.b `PeerIdentification` -- failed to extract or verify peer credentials.
-S004-FR-017.c `CheckinRejected` -- container identity could not be verified.
-S004-FR-017.d `EvaluationTimeout` -- rule evaluation did not complete in time.
-S004-FR-017.e `RateLimited` -- request rejected due to rate limiting.
-S004-FR-017.f `InvalidRequest` -- malformed or oversized request body.
+S004-FR-017 [P1] Agent API failures **MUST** use the typed `AgentApiError` enum via `thiserror`. It **MUST** distinguish socket binding, peer identification, check-in rejection, evaluation timeout, rate limiting, malformed or oversized requests, invalid sessions, cross-container session use, capacity exhaustion, missing rule requests, and internal persistence/randomness failures. HTTP conversion **MUST** preserve the `ApiResponse` envelope and add `Retry-After` for rate limits.
 
 ### Daemon integration
 
