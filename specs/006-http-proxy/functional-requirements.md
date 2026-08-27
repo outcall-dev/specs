@@ -22,7 +22,7 @@ S006-FR-019 [P1] The proxy **MUST** resolve upstream hostnames via the system DN
 
 S006-FR-004 [P1] For HTTPS, the proxy **MUST** handle the HTTP `CONNECT` method. Upon receiving `CONNECT host:port`, the proxy **MUST** peek at the initial TLS ClientHello from the client to extract the SNI hostname before making a forwarding decision.
 
-S006-FR-005 [P1] SNI extraction **MUST** use `rustls` to parse the TLS ClientHello. The proxy **MUST** read enough bytes to parse the ClientHello without consuming them -- the original bytes **MUST** be forwarded to the upstream server if the connection is allowed.
+S006-FR-005 [P1] SNI extraction **MUST** parse one bounded TLS ClientHello record without consuming it. Oversized, truncated, malformed, or record-fragmented ClientHello input **MUST** fail closed. The original bytes **MUST** be forwarded unchanged if the connection is allowed.
 
 S006-FR-017 [P1] The proxy **MUST NOT** decrypt TLS traffic. It **MUST NOT** terminate the TLS connection. The proxy acts as a transparent tunnel after the initial SNI peek.
 
@@ -40,25 +40,25 @@ S006-FR-007.d `http.headers.<name>` -- request headers, lowercased. For CONNECT 
 
 S006-FR-009 [P1] When the rule engine returns ALLOW, the proxy **MUST** forward the request (HTTP) or send `200 Connection Established` and begin tunneling (HTTPS CONNECT).
 
-S006-FR-008 [P1] When the rule engine returns BLOCK, the proxy **MUST** return HTTP 403 to the client. The response body **MUST** include the block reason from the rule engine. For CONNECT requests, the 403 **MUST** be sent before any `200 Connection Established` response.
+S006-FR-008 [P1] A BLOCK decision from the initial HTTP or CONNECT-host evaluation **MUST** return HTTP 403 with the matched rule ID or default-policy reason before any upstream connection. If a different SNI hostname is blocked after `200 Connection Established` has already been sent, the proxy **MUST** close the tunnel without connecting upstream; it cannot send a second HTTP response inside the tunnel.
 
 ### Timeouts and resource limits
 
-S006-FR-010 [P2] The proxy **MUST** enforce a connect timeout when establishing the upstream connection. The default **MUST** be 10 seconds. The timeout **MUST** be configurable.
+S006-FR-010 [P2] The proxy **MUST** enforce a 10-second timeout for upstream DNS resolution, connection establishment, request headers, and the initial TLS ClientHello. Runtime configurability is deferred until limits can be validated as safe.
 
 S006-FR-011 [P2] The proxy **MUST** enforce an idle timeout on tunneled connections. If no data flows in either direction for the idle timeout period (default 300 seconds), the proxy **MUST** close both sides of the tunnel.
 
-S006-FR-012 [P2] The proxy **MUST** enforce a maximum number of concurrent connections (default 1024). When the limit is reached, new connections **MUST** receive HTTP 503 Service Unavailable and be closed.
+S006-FR-012 [P2] The proxy **MUST** enforce a maximum of 1024 concurrent connections. When the limit is reached, new connections **MUST** receive HTTP 503 Service Unavailable and be closed. Runtime configurability is deferred.
 
 ### Logging
 
-S006-FR-013 [P2] The proxy **MUST** log every BLOCK verdict at `warn` level, including: source IP, target hostname, HTTP method, path (if available), and the block reason.
+S006-FR-013 [P2] The proxy **MUST** log BLOCK decisions at `warn` or `error` level with the verified source IP, target hostname and port, request method where applicable, and block reason. Query strings, headers, bodies, and credentials **MUST NOT** be logged.
 
 S006-FR-013.a [P2] The proxy **SHOULD** log every ALLOW verdict at `debug` level with the same fields.
 
 ### Authentication
 
-S006-FR-014 [P3] The proxy **MAY** support optional proxy authentication via the `Proxy-Authorization` header. When enabled, unauthenticated requests **MUST** receive HTTP 407 Proxy Authentication Required. When disabled (the default), the proxy **MUST NOT** require authentication.
+S006-FR-014 [P3] Production proxy authorization **MUST** use host-verified managed-container identity (S006-FR-025), not caller-controlled `Proxy-Authorization` credentials. Any `Proxy-Authorization` header **MUST** be stripped before forwarding upstream.
 
 ### Container configuration
 
@@ -67,14 +67,28 @@ S006-FR-016.a `HTTP_PROXY` set to `http://<proxy_addr>:<proxy_port>`
 S006-FR-016.b `HTTPS_PROXY` set to `http://<proxy_addr>:<proxy_port>`
 S006-FR-016.c `http_proxy` set to the same value as `HTTP_PROXY` (lowercase variant for compatibility)
 S006-FR-016.d `https_proxy` set to the same value as `HTTPS_PROXY` (lowercase variant for compatibility)
+S006-FR-016.e `NO_PROXY` and `no_proxy` set to `localhost,127.0.0.1`
+
+When the proxy is disabled, all six reserved proxy variables **MUST** be omitted
+and caller-provided replacements **MUST** be discarded.
 
 ### Error handling
 
 S006-FR-021 [P1] When the upstream server is unreachable (connection refused, timeout, DNS failure), the proxy **MUST** return an appropriate HTTP error to the client:
 S006-FR-021.a DNS resolution failure: HTTP 502 Bad Gateway
 S006-FR-021.b Connection refused: HTTP 502 Bad Gateway
-S006-FR-021.c Connect timeout: HTTP 504 Gateway Timeout
+S006-FR-021.c Connect timeout before an HTTP response is established: HTTP 504 Gateway Timeout
+
+After a CONNECT tunnel has received HTTP 200, later ClientHello, SNI, or
+upstream failures close the tunnel because another proxy HTTP response cannot
+be sent safely.
 
 ### Fail-closed
 
-S006-FR-022 [P1] If the rule engine returns an error or is unavailable, the proxy **MUST** return HTTP 403 Forbidden (default BLOCK). This behavior **MUST NOT** be configurable.
+S006-FR-023 [P1] If the rule engine returns an error or is unavailable, the proxy **MUST** return HTTP 403 Forbidden (default BLOCK). This behavior **MUST NOT** be configurable.
+
+S006-FR-024 [P1] The proxy **MUST** reject ambiguous request framing before connecting upstream. Duplicate `Host`, conflicting or duplicate `Content-Length`, `Transfer-Encoding`, `Expect`, upgrade requests, bytes beyond the declared body, and pipelined requests **MUST NOT** be forwarded. Request headers are limited to 8 KiB and request bodies to 16 MiB.
+
+S006-FR-025 [P1] In production, the proxy **MUST** resolve the connection source IP to a currently managed Outcall container before rule evaluation. Unmanaged peers and Docker identity lookup failures **MUST** receive HTTP 403; rules **MUST NOT** be evaluated with an anonymous agent identity.
+
+S006-FR-026 [P1] Upstream hostnames **MUST** be resolved before connecting and the exact resolved socket addresses reused for the connection. Loopback, private, link-local, reserved, documentation, multicast, CGNAT, IPv4-embedded IPv6, and equivalent restricted destinations **MUST** be blocked unless the matched rule explicitly sets `egress.allow_private_ips: true`.

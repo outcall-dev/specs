@@ -9,15 +9,15 @@ S002-FR-002.a Driver: `bridge`
 S002-FR-002.b Bridge name option: `com.docker.network.bridge.name` set to the configured bridge name
 S002-FR-002.c Subnet and gateway from auto-allocation or explicit override
 
-S002-FR-003 [P1] The create operation **MUST** be idempotent. If a network with the given name already exists, the endpoint **MUST** return success with `created: false`.
+S002-FR-003 [P1] The create operation **MUST** be idempotent. If a network with the given name already exists and has the required driver and bridge identity, the endpoint **MUST** return success with `created: false`. A same-name network with different identity **MUST** be rejected.
 
 S002-FR-004 [P1] `outcalld` **MUST** verify that the bridge is up before creating any network. If the bridge is not initialized, the endpoint **MUST** return an error.
 
-S002-FR-005 [P2] `outcalld` **SHOULD** verify after creation that the Docker network is backed by the expected bridge interface.
+S002-FR-005 [P1] After creation, `outcalld` **MUST** re-inspect the network and verify its immutable ID, bridge driver, configured bridge interface, subnet, and gateway before returning success.
 
 ### Default network
 
-S002-FR-006 [P1] The default network name **MUST** be `outcall-default` with subnet `10.200.0.0/24` and gateway `10.200.0.1`.
+S002-FR-006 [P1] The default network name **MUST** be `outcall-default`. With the default allocation block it uses subnet `10.200.0.0/24` and gateway `10.200.0.1`; with a custom allocation block it uses that block's first `/24` and first usable address.
 
 S002-FR-007 [P1] When `outcall network create` is called without `--name`, it **MUST** create the default network.
 
@@ -33,13 +33,13 @@ S002-FR-011 [P2] The user-provided name portion **MUST** be validated: alphanume
 
 ### Subnet auto-allocation
 
-S002-FR-012 [P1] When no explicit subnet is provided, `outcalld` **MUST** auto-allocate the next available `/24` from the `10.200.0.0/16` block by scanning `10.200.0.0/24` through `10.200.254.0/24` and picking the first unused slot.
+S002-FR-012 [P1] When no explicit subnet is provided, `outcalld` **MUST** auto-allocate the next available `/24` from the `10.200.0.0/16` block by scanning `10.200.0.0/24` through `10.200.255.0/24` and picking the first unused slot.
 
 S002-FR-013 [P1] Before allocating, `outcalld` **MUST** check both its own managed networks AND all Docker networks (via the Docker API) for subnet collisions. A subnet is considered in-use if any Docker network's IPAM config overlaps with it.
 
-S002-FR-014 [P2] If all 255 `/24` subnets in the block are in use, the create endpoint **MUST** return an error: `"no available subnets in 10.200.0.0/16"`.
+S002-FR-014 [P2] If all 256 `/24` subnets in the default block are in use, the create endpoint **MUST** return an error: `"no available subnets in 10.200.0.0/16"`.
 
-S002-FR-015 [P1] An explicit `--subnet` override **MUST** still be checked against Docker's existing networks for collisions before creation.
+S002-FR-015 [P1] An explicit `--subnet` override **MUST** be a canonical IPv4 CIDR wholly inside one RFC 1918 range, provide usable gateway and container addresses, and be checked for overlap with every existing Docker IPv4 subnet before creation. An explicit gateway **MUST** be a usable address inside that subnet.
 
 ### Network status and listing
 
@@ -47,7 +47,7 @@ S002-FR-016 [P1] The status endpoint **MUST** return whether the network exists,
 
 S002-FR-017 [P1] `outcalld` **MUST** query Docker on every status request. It **MUST NOT** cache network state.
 
-S002-FR-018 [P1] The list endpoint **MUST** return all outcall-managed networks. A network is considered outcall-managed if its name starts with the `outcall-` prefix.
+S002-FR-018 [P1] The list endpoint **MUST** return all outcall-managed networks. A network is considered managed only when its name starts with `outcall-`, its driver is `bridge`, and `com.docker.network.bridge.name` exactly matches the configured Outcall bridge. Prefix-only lookalikes **MUST** be ignored and logged.
 
 ### Network destruction
 
@@ -63,7 +63,7 @@ S002-FR-022 [P1] Docker management **MUST** run within the existing `outcalld` p
 
 S002-FR-023 [P2] `outcalld` **MUST** initialize a Docker client at startup. Connection failure at startup **SHOULD** be logged as a warning but **MUST NOT** prevent the daemon from starting.
 
-S002-FR-032 [P1] On startup, `outcalld` **MUST** rediscover existing outcall-managed networks by querying Docker for networks whose name starts with the `outcall-` prefix. This ensures that networks created in a previous daemon session (which outlive the daemon per S002-EC-010) are visible to the list and status endpoints without requiring re-creation.
+S002-FR-032 [P1] On startup, `outcalld` **MUST** rediscover existing outcall-managed networks by querying Docker for networks whose name starts with the `outcall-` prefix and validating each network's managed identity. This ensures that networks created in a previous daemon session (which outlive the daemon per S002-EC-010) are visible without accepting prefix-only lookalikes.
 
 S002-FR-024 [P1] The network endpoints **MUST** be served on the host unix socket only. They **MUST NOT** be exposed on any agent-facing socket.
 
@@ -81,6 +81,8 @@ S002-FR-028 [P1] The network prefix, subnet block, default network name, default
 
 S002-FR-029 [P2] `outcalld` **SHOULD** accept a `--subnet-block` flag (e.g. `--subnet-block 10.201.0.0/16`) to override the default `10.200.0.0/16` allocation block. When set, auto-allocation and the default network subnet **MUST** use the provided block instead.
 
-S002-FR-030 [P2] The `--subnet-block` value **MUST** be a valid CIDR in RFC 1918 space. `outcalld` **MUST** reject non-private ranges at startup.
+S002-FR-030 [P2] The `--subnet-block` value **MUST** be a canonical IPv4 CIDR, no smaller than `/24`, and wholly contained in one RFC 1918 range. `outcalld` **MUST** reject host bits, non-private ranges, and ranges that cross a private-space boundary at startup.
 
 S002-FR-031 [P2] The configured subnet block **MUST** be queryable via `GET /api/v1/network/config` so the CLI and other tools can discover the active allocation range.
+
+S002-FR-033 [P1] Status and destroy operations **MUST** verify the target network's managed identity before returning details or removing it. A forged `outcall-*` network **MUST NOT** be treated as an Outcall security boundary or deleted by Outcall.

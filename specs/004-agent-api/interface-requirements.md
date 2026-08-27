@@ -242,3 +242,4 @@ HTTP status codes used by the agent API:
 | 422 | Invalid condition syntax in rule request |
 | 429 | Rate limit exceeded |
 | 500 | Internal server error |
+| 503 | Peer identity lookup timed out or session capacity reached |

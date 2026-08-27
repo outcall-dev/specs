@@ -38,8 +38,8 @@ the raw bytes or returns a 403.
 
 ### Tech stack
 
-- `hyper` for HTTP handling (request parsing, response generation)
-- `rustls` for TLS ClientHello / SNI parsing (no decryption)
+- `httparse` plus structured URL parsing for bounded HTTP/1.1 request handling
+- A bounded TLS-record and ClientHello parser for SNI peeking (no decryption)
 
 ## User Scenarios
 
@@ -57,78 +57,85 @@ S006-US-005 [P2] As a host operator, I want connection limits and timeouts so th
 
 | ID | Type | Priority | Title | Status |
 |----|------|----------|-------|--------|
-| S006-FR-001 | Functional | P1 | In-process Tokio task | Draft |
-| S006-FR-002 | Functional | P1 | Listen address configuration | Draft |
-| S006-FR-003 | Functional | P1 | HTTP direct forwarding | Draft |
-| S006-FR-004 | Functional | P1 | HTTPS CONNECT tunneling | Draft |
-| S006-FR-005 | Functional | P1 | SNI extraction from ClientHello | Draft |
-| S006-FR-006 | Functional | P1 | Rule engine integration | Draft |
-| S006-FR-007 | Functional | P1 | CEL context population | Draft |
-| S006-FR-008 | Functional | P1 | BLOCK verdict response | Draft |
-| S006-FR-009 | Functional | P1 | ALLOW verdict forwarding | Draft |
-| S006-FR-010 | Functional | P2 | Connection timeout | Draft |
-| S006-FR-011 | Functional | P2 | Idle timeout | Draft |
-| S006-FR-012 | Functional | P2 | Max concurrent connections | Draft |
-| S006-FR-013 | Functional | P2 | Request logging | Draft |
-| S006-FR-014 | Functional | P3 | Proxy authentication | Draft |
-| S006-FR-015 | Functional | P1 | Graceful shutdown | Draft |
-| S006-FR-016 | Functional | P1 | Container env var injection | Draft |
-| S006-FR-017 | Functional | P1 | No TLS decryption | Draft |
-| S006-FR-018 | Functional | P2 | SNI-absent HTTPS handling | Draft |
-| S006-FR-019 | Functional | P1 | Upstream DNS resolution | Draft |
-| S006-FR-020 | Functional | P2 | Hop-by-hop header stripping | Draft |
-| S006-FR-021 | Functional | P1 | Error propagation | Draft |
-| S006-FR-022 | Functional | P2 | Health check endpoint | Draft |
-| S006-AS-001 | Acceptance | P1 | HTTP GET allowed | Draft |
-| S006-AS-002 | Acceptance | P1 | HTTP GET blocked | Draft |
-| S006-AS-003 | Acceptance | P1 | HTTPS CONNECT allowed | Draft |
-| S006-AS-004 | Acceptance | P1 | HTTPS CONNECT blocked | Draft |
-| S006-AS-005 | Acceptance | P1 | SNI hostname extraction | Draft |
-| S006-AS-006 | Acceptance | P1 | Rule engine verdict BLOCK | Draft |
+| S006-FR-001 | Functional | P1 | In-process Tokio task | Implemented |
+| S006-FR-002 | Functional | P1 | Listen address configuration | Implemented |
+| S006-FR-003 | Functional | P1 | HTTP direct forwarding | Implemented |
+| S006-FR-004 | Functional | P1 | HTTPS CONNECT tunneling | Implemented |
+| S006-FR-005 | Functional | P1 | SNI extraction from ClientHello | Implemented |
+| S006-FR-006 | Functional | P1 | Rule engine integration | Implemented |
+| S006-FR-007 | Functional | P1 | CEL context population | Implemented |
+| S006-FR-008 | Functional | P1 | BLOCK verdict response | Implemented |
+| S006-FR-009 | Functional | P1 | ALLOW verdict forwarding | Implemented |
+| S006-FR-010 | Functional | P2 | Connection timeout | Implemented |
+| S006-FR-011 | Functional | P2 | Idle timeout | Implemented |
+| S006-FR-012 | Functional | P2 | Max concurrent connections | Implemented |
+| S006-FR-013 | Functional | P2 | Request logging | Implemented |
+| S006-FR-014 | Functional | P3 | Managed-peer authentication | Implemented |
+| S006-FR-015 | Functional | P1 | Graceful shutdown | Implemented |
+| S006-FR-016 | Functional | P1 | Container env var injection | Implemented |
+| S006-FR-017 | Functional | P1 | No TLS decryption | Implemented |
+| S006-FR-018 | Functional | P2 | SNI-absent HTTPS handling | Implemented |
+| S006-FR-019 | Functional | P1 | Upstream DNS resolution | Implemented |
+| S006-FR-020 | Functional | P2 | Hop-by-hop header stripping | Implemented |
+| S006-FR-021 | Functional | P1 | Error propagation | Implemented |
+| S006-FR-022 | Functional | P2 | Health check endpoint | Implemented |
+| S006-FR-023 | Functional | P1 | Fail closed on rule engine errors | Implemented |
+| S006-FR-024 | Functional | P1 | Unambiguous bounded request framing | Implemented |
+| S006-FR-025 | Functional | P1 | Managed peer identity required | Implemented |
+| S006-FR-026 | Functional | P1 | Restricted upstream addresses blocked by default | Implemented |
+| S006-AS-001 | Acceptance | P1 | HTTP GET allowed | Implemented |
+| S006-AS-002 | Acceptance | P1 | HTTP GET blocked | Implemented |
+| S006-AS-003 | Acceptance | P1 | HTTPS CONNECT allowed | Implemented |
+| S006-AS-004 | Acceptance | P1 | HTTPS CONNECT blocked | Implemented |
+| S006-AS-005 | Acceptance | P1 | SNI hostname extraction | Implemented |
+| S006-AS-006 | Acceptance | P1 | Rule engine verdict BLOCK | Implemented |
 | S006-AS-007 | Acceptance | P2 | Connection timeout | Draft |
 | S006-AS-008 | Acceptance | P2 | Max connections reached | Draft |
-| S006-AS-009 | Acceptance | P1 | Proxy startup and shutdown | Draft |
-| S006-AS-010 | Acceptance | P2 | No SNI in ClientHello | Draft |
+| S006-AS-009 | Acceptance | P1 | Proxy startup and shutdown | Implemented |
+| S006-AS-010 | Acceptance | P2 | No SNI in ClientHello | Implemented |
 | S006-AS-011 | Acceptance | P1 | Multiple agents concurrent | Draft |
-| S006-AS-012 | Acceptance | P2 | Upstream unreachable | Draft |
-| S006-AS-013 | Acceptance | P2 | Blocked request logging | Draft |
-| S006-IF-001 | Interface | P1 | Proxy listen address | Draft |
-| S006-IF-002 | Interface | P1 | HTTP CONNECT protocol | Draft |
-| S006-IF-003 | Interface | P1 | HTTP direct proxy protocol | Draft |
-| S006-IF-004 | Interface | P1 | 403 BLOCK response format | Draft |
-| S006-IF-005 | Interface | P1 | Container environment variables | Draft |
-| S006-IF-006 | Interface | P2 | Health check endpoint | Draft |
-| S006-IF-007 | Interface | P1 | CEL context variables | Draft |
-| S006-EC-001 | Edge Case | P1 | SNI absent from ClientHello | Draft |
-| S006-EC-002 | Edge Case | P1 | Upstream connection refused | Draft |
-| S006-EC-003 | Edge Case | P1 | Upstream DNS failure | Draft |
-| S006-EC-004 | Edge Case | P2 | Client disconnects mid-tunnel | Draft |
-| S006-EC-005 | Edge Case | P2 | Upstream disconnects mid-tunnel | Draft |
-| S006-EC-006 | Edge Case | P2 | Extremely large headers | Draft |
-| S006-EC-007 | Edge Case | P2 | Non-CONNECT non-HTTP method | Draft |
-| S006-EC-008 | Edge Case | P1 | Rule engine unavailable | Draft |
-| S006-EC-009 | Edge Case | P2 | Port other than 443 in CONNECT | Draft |
-| S006-EC-010 | Edge Case | P2 | Proxy address not reachable from container | Draft |
-| S006-EC-011 | Edge Case | P3 | HTTP/2 CONNECT | Draft |
-| S006-EC-012 | Edge Case | P2 | Rapid reconnect flood | Draft |
-| S006-EC-013 | Edge Case | P1 | Daemon shutdown with active tunnels | Draft |
-| S006-EC-014 | Edge Case | P2 | WebSocket upgrade handling | Draft |
-| S006-SC-001 | Success | P1 | HTTP request forwarded when allowed | Draft |
-| S006-SC-002 | Success | P1 | HTTPS tunnel established when allowed | Draft |
-| S006-SC-003 | Success | P1 | Blocked requests return 403 | Draft |
-| S006-SC-004 | Success | P1 | SNI hostname matches rule engine evaluation | Draft |
-| S006-SC-005 | Success | P1 | Proxy starts and stops with outcalld | Draft |
-| S006-SC-006 | Success | P1 | No TLS decryption occurs | Draft |
-| S006-SC-007 | Success | P2 | Blocked requests are logged | Draft |
+| S006-AS-012 | Acceptance | P2 | Upstream unreachable | Implemented |
+| S006-AS-013 | Acceptance | P2 | Blocked request logging | Implemented |
+| S006-IF-001 | Interface | P1 | Proxy listen address | Implemented |
+| S006-IF-002 | Interface | P1 | HTTP CONNECT protocol | Implemented |
+| S006-IF-003 | Interface | P1 | HTTP direct proxy protocol | Implemented |
+| S006-IF-004 | Interface | P1 | 403 BLOCK response format | Implemented |
+| S006-IF-005 | Interface | P1 | Container environment variables | Implemented |
+| S006-IF-006 | Interface | P2 | Health check endpoint | Implemented |
+| S006-IF-007 | Interface | P1 | CEL context variables | Implemented |
+| S006-EC-001 | Edge Case | P1 | SNI absent from ClientHello | Implemented |
+| S006-EC-002 | Edge Case | P1 | Upstream connection refused | Implemented |
+| S006-EC-003 | Edge Case | P1 | Upstream DNS failure | Implemented |
+| S006-EC-004 | Edge Case | P2 | Client disconnects mid-tunnel | Implemented |
+| S006-EC-005 | Edge Case | P2 | Upstream disconnects mid-tunnel | Implemented |
+| S006-EC-006 | Edge Case | P2 | Extremely large headers | Implemented |
+| S006-EC-007 | Edge Case | P2 | Non-CONNECT non-HTTP method | Implemented |
+| S006-EC-008 | Edge Case | P1 | Rule engine unavailable | Implemented |
+| S006-EC-009 | Edge Case | P2 | Port other than 443 in CONNECT | Implemented |
+| S006-EC-010 | Edge Case | P2 | Proxy address not reachable from container | Implemented |
+| S006-EC-011 | Edge Case | P3 | HTTP/2 CONNECT | Implemented |
+| S006-EC-012 | Edge Case | P2 | Rapid reconnect flood | Implemented |
+| S006-EC-013 | Edge Case | P1 | Daemon shutdown with active tunnels | Implemented |
+| S006-EC-014 | Edge Case | P2 | WebSocket upgrade handling | Implemented |
+| S006-EC-015 | Edge Case | P1 | Unmanaged source IP | Implemented |
+| S006-EC-016 | Edge Case | P1 | Restricted-only upstream target | Implemented |
+| S006-EC-017 | Edge Case | P1 | Ambiguous framing or pipelining | Implemented |
+| S006-SC-001 | Success | P1 | HTTP request forwarded when allowed | Implemented |
+| S006-SC-002 | Success | P1 | HTTPS tunnel established when allowed | Implemented |
+| S006-SC-003 | Success | P1 | Blocked requests return 403 | Implemented |
+| S006-SC-004 | Success | P1 | SNI hostname matches rule engine evaluation | Implemented |
+| S006-SC-005 | Success | P1 | Proxy starts and stops with outcalld | Implemented |
+| S006-SC-006 | Success | P1 | No TLS decryption occurs | Implemented |
+| S006-SC-007 | Success | P2 | Blocked requests are logged | Implemented |
 | S006-SC-008 | Success | P1 | Multiple concurrent agents served | Draft |
-| S006-SC-009 | Success | P2 | Timeouts enforce resource limits | Draft |
-| S006-SC-010 | Success | P1 | Container env vars point to proxy | Draft |
+| S006-SC-009 | Success | P2 | Timeouts enforce resource limits | Implemented |
+| S006-SC-010 | Success | P1 | Container env vars point to proxy | Implemented |
 
 ## Out of Scope
 
 - **TLS decryption / MITM** -- the proxy inspects SNI only, never decrypts
 - **Request body inspection** -- L7 inspection covers method, path, headers, hostname; not body content
-- **WebSocket upgrade handling** -- initial HTTP upgrade request is evaluated, but the proxy does not inspect WebSocket frames
+- **WebSocket upgrade handling** -- HTTP Upgrade requests are rejected
 - **HTTP/2 multiplexing** -- the proxy operates at HTTP/1.1 level between client and proxy
 - **Caching** -- the proxy is not a caching proxy
 - **Content modification** -- the proxy does not rewrite request or response bodies

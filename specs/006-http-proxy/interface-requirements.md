@@ -35,10 +35,10 @@ HTTP/1.1 200 Connection Established
 
 ```
 
-After sending `200 Connection Established`, the proxy **MUST** tunnel raw bytes
-bidirectionally. The proxy peeks at the first bytes from the client (the TLS
-ClientHello) to extract the SNI hostname before establishing the upstream
-connection and beginning the tunnel.
+After sending `200 Connection Established`, the proxy reads one bounded TLS
+ClientHello, extracts SNI, and performs any required second policy evaluation
+before establishing the upstream connection. A post-200 failure closes the
+connection without embedding another HTTP response in the tunnel.
 
 **Proxy response (blocked):**
 
@@ -91,7 +91,7 @@ Upstream connection failed: <detail>
 
 ### S006-IF-004 403 BLOCK response format [P1]
 
-All blocked responses **MUST** use the following format:
+Initial rule-policy blocks use the following format:
 
 | Field | Value |
 |-------|-------|
@@ -100,8 +100,9 @@ All blocked responses **MUST** use the following format:
 | X-Outcall-Block-Reason | The rule engine's block reason string |
 | Body | `Blocked by outcall: <reason>` |
 
-The `X-Outcall-Block-Reason` header enables programmatic detection of proxy
-blocks by agent tooling.
+Restricted-address and malformed-request failures use their corresponding
+generic 4xx response. Post-200 SNI blocks close the tunnel and therefore have
+no HTTP block response.
 
 ### S006-IF-005 Container environment variables [P1]
 
@@ -121,6 +122,9 @@ The address and port **MUST** match the proxy's actual listen address.
 `NO_PROXY` **MUST** include `localhost` and `127.0.0.1` so that
 container-internal traffic bypasses the proxy.
 
+With `--no-proxy`, none of these six variables is injected. Container requests
+cannot replace the reserved values with caller-controlled proxy settings.
+
 ### S006-IF-006 Health check endpoint [P2]
 
 ```
@@ -135,16 +139,12 @@ HTTP/1.1 200 OK
 Content-Type: application/json
 Content-Length: <length>
 
-{
-  "status": "ok",
-  "active_connections": 42,
-  "total_requests": 1500,
-  "total_blocked": 37
-}
+{"status":"ok"}
 ```
 
 This endpoint **MUST NOT** be forwarded upstream. It is identified by the
-exact path `/outcall-health` with no query string.
+exact path `/outcall-health` with no query string. Detailed counters are
+available to the host operator through `GET /api/v1/proxy` on the host socket.
 
 ### S006-IF-007 CEL context variables [P1]
 
@@ -154,9 +154,14 @@ context passed to the rule engine (S003):
 | Variable | Type | Source | Example |
 |----------|------|--------|---------|
 | `network.hostname` | `string` | Host header (HTTP), SNI or CONNECT line (HTTPS) | `"api.github.com"` |
+| `network.ip` | `string` | Target IP when the authority itself is an IP; otherwise empty | `"203.0.113.10"` |
+| `network.port` | `int` | Target port | `443` |
+| `network.protocol` | `string` | Always TCP | `"tcp"` |
 | `http.method` | `string` | HTTP method | `"GET"`, `"POST"`, `"CONNECT"` |
 | `http.path` | `string` | Request path (HTTP) or `"/"` (CONNECT) | `"/v1/data"` |
 | `http.headers.<name>` | `string` | Request headers, name lowercased | `http.headers.accept` = `"application/json"` |
+| `http.body_size` | `int` | Declared request body bytes | `0` |
+| `agent.name` | `string` | Host-derived managed agent name | `"codex"` |
 
 For CONNECT requests:
 - `http.method` **MUST** be `"CONNECT"`

@@ -71,13 +71,13 @@
 
 ### S006-AS-007 Connection timeout [P2]
 
-**Given** `outcalld` is running with connect timeout set to 10 seconds
+**Given** `outcalld` is running with its 10-second upstream timeout
 **When** the agent makes an HTTP request to a host where the upstream does not respond within 10 seconds
 **Then** the proxy returns HTTP 504 Gateway Timeout to the agent.
 
 ### S006-AS-008 Max connections reached [P2]
 
-**Given** `outcalld` is running with max connections set to 1024
+**Given** `outcalld` is running with its 1024-connection limit
 **And** 1024 connections are currently active
 **When** a new agent connection arrives
 **Then** the proxy returns HTTP 503 Service Unavailable
@@ -101,7 +101,7 @@
 ### S006-AS-010 No SNI in ClientHello [P2]
 
 **Given** `outcalld` is running with the proxy listening
-**And** the rule engine allows `network.hostname == "10.200.5.10"`
+**And** the rule engine allows `network.hostname == "10.200.5.10"` and explicitly opts into private upstream addresses
 **When** the agent sends `CONNECT 10.200.5.10:443`
 **And** the TLS ClientHello does not contain an SNI extension
 **Then** the proxy falls back to using `10.200.5.10` from the CONNECT line
@@ -136,3 +136,4 @@
   - target hostname
   - HTTP method
   - block reason from the rule engine.
+**And** query strings, headers, bodies, and credentials are not logged.

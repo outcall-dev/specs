@@ -5,6 +5,7 @@
 **Given** the `outcalld` daemon is running and the bridge is up
 **And** a rule file contains:
 ```yaml
+version: "1"
 rules:
   - id: "allow-github"
     condition: network.hostname == "github.com" && http.method == "GET"
@@ -19,15 +20,17 @@ rules:
 **Given** the `outcalld` daemon is running and the bridge is up
 **And** a rule file contains:
 ```yaml
+version: "1"
 rules:
   - id: "block-force-push"
     condition: run.tool == "git" && "-f" in run.flags
     action: block
     log: true
 ```
-**When** an agent executes `git push -f`
+**When** an authenticated enforcement point evaluates a request with
+`run.tool == "git"` and `run.flags` containing `-f`
 **Then** the rule engine returns `decision: block` with `matched_rule: "block-force-push"`
-**And** a structured log entry is emitted with the rule ID, decision, and context summary
+**And** a structured log entry is emitted with the rule ID, source file, and decision
 **And** the request is denied.
 
 ### S003-AS-003 Evaluate: no rule matches (default block) [P1]
@@ -43,6 +46,7 @@ rules:
 **Given** the `outcalld` daemon is running and the bridge is up
 **And** file `00-base.yaml` contains:
 ```yaml
+version: "1"
 rules:
   - id: "allow-all-github"
     condition: network.hostname == "github.com"
@@ -50,6 +54,7 @@ rules:
 ```
 **And** file `10-restrictions.yaml` contains:
 ```yaml
+version: "1"
 rules:
   - id: "block-github-admin"
     condition: network.hostname == "github.com" && http.path.startsWith("/admin")
@@ -64,6 +69,7 @@ rules:
 **Given** the `outcalld` daemon is running and the bridge is up
 **And** a rule file contains:
 ```yaml
+version: "1"
 definitions:
   is_github: network.hostname == "github.com"
 rules:
@@ -76,31 +82,28 @@ rules:
 **And** evaluates the full condition
 **And** returns `decision: allow`.
 
-### S003-AS-006 Evaluate: enrich hook populates context [P2]
+### S003-AS-006 Startup: unsafe enrich action is rejected [P1]
 
-**Given** the `outcalld` daemon is running and the bridge is up
-**And** a rule file contains:
+**Given** a rule file contains:
 ```yaml
+version: "1"
 rules:
   - id: "enrich-git-context"
     condition: run.tool == "git"
     action: enrich
     enrich:
       script: hooks/check-repo.sh
-  - id: "allow-git-on-main"
-    condition: run.tool == "git" && run.context.branch == "main"
-    action: allow
 ```
-**And** the script `hooks/check-repo.sh` outputs `{"branch": "main"}`
-**When** an agent runs a git command
-**Then** the enrich hook executes first, populating `run.context.branch`
-**And** the next rule evaluates with the enriched context
-**And** returns `decision: allow`.
+**When** `outcalld` starts or reloads rules
+**Then** static analysis rejects the rule set
+**And** the script is not executed
+**And** an existing active rule set remains active during reload.
 
 ### S003-AS-007 Startup: CEL parse error aborts [P1]
 
 **Given** a rule file contains an invalid CEL expression:
 ```yaml
+version: "1"
 rules:
   - id: "bad-rule"
     condition: "network.hostname =="
@@ -115,6 +118,7 @@ rules:
 
 **Given** a rule file contains:
 ```yaml
+version: "1"
 definitions:
   unused_var: network.hostname == "example.com"
 rules:
@@ -147,7 +151,8 @@ rules:
 
 ### S003-AS-011 Evaluate: multi-file filename sort order [P1]
 
-**Given** the rules directory contains files: `50-custom.yaml`, `00-base.yaml`, `25-team.yaml`
+**Given** the rules directory contains files with equal/default priority:
+`50-custom.yaml`, `00-base.yaml`, `25-team.yaml`
 **When** `outcalld` loads rules
 **Then** files are loaded in order: `00-base.yaml`, `25-team.yaml`, `50-custom.yaml`
 **And** rules from `00-base.yaml` are evaluated before rules from `25-team.yaml`
@@ -156,38 +161,37 @@ rules:
 ### S003-AS-012 Agent: submits rule request [P3]
 
 **Given** the `outcalld` daemon is running
-**When** an agent submits a rule request via `POST /api/v1/agent/rule-request` with:
+**When** an authenticated managed agent submits `POST /v1/requests/rules` on
+the agent socket with:
 ```json
 {
-  "description": "Need access to PyPI for package installation",
-  "requested_access": "HTTPS to pypi.org",
-  "suggested_condition": "network.hostname == \"pypi.org\" && http.method == \"GET\""
+  "rule_file": "version: \"1\"\nrules:\n  - id: allow-pypi\n    condition: 'network.hostname == \"pypi.org\"'\n    action: allow\n"
 }
 ```
-**Then** the request is queued with status `pending`
+**Then** the rule file is validated and durably queued with status `pending`
 **And** the agent receives a request ID
 **And** the request does not affect rule evaluation.
 
 ### S003-AS-013 Host: approves rule request [P2]
 
 **Given** a pending rule request exists with ID `req-001`
-**When** the host operator calls `POST /api/v1/rule-request/req-001/approve`
-**Then** `outcalld` writes a new rule file to the rules directory
+**When** the host operator calls `POST /api/v1/requests/rules/req-001/approve`
+**Then** `outcalld` atomically writes a mode-0600 rule file to the rules directory
 **And** triggers an automatic reload
 **And** the new rule is active for subsequent evaluations.
 
-### S003-AS-014 Host: denies rule request [P2]
+### S003-AS-014 Host: rejects rule request [P2]
 
 **Given** a pending rule request exists with ID `req-001`
-**When** the host operator calls `POST /api/v1/rule-request/req-001/deny`
-**Then** the request status changes to `denied`
+**When** the host operator calls `POST /api/v1/requests/rules/req-001/reject`
+**Then** the request status changes to `rejected`
 **And** no rule file is written
 **And** active rules are unchanged.
 
 ### S003-AS-015 CLI: lists loaded rules [P1]
 
 **Given** the `outcalld` daemon is running with rules loaded
-**When** the user runs `outcall rule list`
+**When** the user runs `outcall rules list`
 **Then** the CLI prints a table of all loaded rules with their IDs, files, actions, and condition previews
 **And** the command exits with code 0.
 
@@ -196,7 +200,7 @@ rules:
 **Given** the `outcalld` daemon is running
 **When** the user runs:
 ```
-outcall rule test --expr 'network.hostname == "github.com"' --context '{"network":{"hostname":"github.com","ip":"1.2.3.4","port":443,"protocol":"tcp"}}'
+outcall rules test --expr 'network.hostname == "github.com"' --context '{"network":{"hostname":"github.com","ip":"1.2.3.4","port":443,"protocol":"tcp"}}'
 ```
 **Then** the CLI prints `Result: true`
 **And** the command exits with code 0.
@@ -209,11 +213,12 @@ outcall rule test --expr 'network.hostname == "github.com"' --context '{"network
   - rule ID
   - decision (allow or block)
   - timestamp
-  - context summary (hostname, path, tool, or other relevant fields)
+  - source rule file
+**And** request headers, bodies, and environment values are not logged.
 
 ### S003-AS-018 CLI: daemon not running [P1]
 
 **Given** the `outcalld` daemon is not running
-**When** the user runs any `outcall rule` subcommand
+**When** the user runs a daemon-backed `outcall rules` or `outcall requests` command
 **Then** the CLI prints `Error: cannot connect to outcalld at <socket> -- is it running?`
 **And** the command exits with code 1.

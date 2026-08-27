@@ -19,19 +19,18 @@
 **When** the CEL expression `agent.name == "foobar"` is evaluated on a request from `bar-1`
 **Then** the result is `false`
 
-## S013-AS-003: Agent name absent when SO_PEERCRED unavailable
+## S013-AS-003: Agent API rejects missing peer credentials
 
 **Given** the rule engine evaluates a request from a non-Unix socket context
 **When** `build_eval_context` is called
-**Then** `EvalContext.agent` is `None`
-**And** the rule engine evaluates using all other context fields without agent
+**Then** the request is rejected before rule evaluation
 
-## S013-AS-004: Agent name absent when container not found
+## S013-AS-004: Enforcement rejects unknown container identity
 
 **Given** a request arrives from a PID whose IP is not in DockerManager's container map
 **When** `build_eval_context` resolves the agent name
-**Then** `EvalContext.agent` is `None`
-**And** no error is raised to the caller
+**Then** the request is rejected before rule evaluation
+**And** no generic allow rule can authorize the unidentified caller
 
 ## S013-AS-005: Existing EvalContext consumers unchanged
 

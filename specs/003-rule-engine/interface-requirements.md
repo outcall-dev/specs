@@ -1,10 +1,14 @@
 # S003 Interface Requirements
 
+Unless stated otherwise, `/api/v1/...` endpoints are available only on the
+operator-owned host Unix socket. Agent endpoints use the separately mounted
+agent Unix socket and require a valid host-derived container identity and
+check-in session.
+
 ### S003-IF-001 POST /api/v1/rule/evaluate [P1]
 
-Evaluate a request against the loaded rule set. This is an internal endpoint called by `outcalld` subsystems (bridge, network interceptors) -- not directly by agents.
-
-**Request body**:
+Evaluate a typed context against the loaded rules. The host endpoint first
+requires the managed bridge to be up.
 
 ```json
 {
@@ -19,16 +23,15 @@ Evaluate a request against the loaded rule set. This is an internal endpoint cal
       "method": "GET",
       "path": "/api/v3/repos",
       "host": "github.com",
-      "headers": { "authorization": "token xxx" },
+      "headers": {},
       "body_size": 0
-    }
+    },
+    "agent": { "name": "review-agent" }
   }
 }
 ```
 
-Only the relevant context namespaces need to be populated. Omitted namespaces are treated as absent -- rules referencing absent namespace variables evaluate to false for that condition.
-
-**Success response** (`ApiResponse<EvaluateResult>`):
+Success returns `ApiResponse<EvaluateResult>`:
 
 ```json
 {
@@ -42,97 +45,52 @@ Only the relevant context namespaces need to be populated. Omitted namespaces ar
 }
 ```
 
-When no rule matches (default block):
-
-```json
-{
-  "success": true,
-  "data": {
-    "decision": "block",
-    "matched_rule": null,
-    "file": null,
-    "logged": false
-  }
-}
-```
-
-**Error response** (bridge not up):
-
-```json
-{
-  "success": false,
-  "error": "rule evaluation unavailable: bridge is not up"
-}
-```
+No match returns a successful `block` decision with `matched_rule` and `file`
+set to `null`. A bridge or evaluation precondition failure returns
+`success: false` and no data.
 
 ### S003-IF-002 GET /api/v1/rules [P1]
 
-List all loaded rules across all files.
-
-**Success response** (`ApiResponse<Vec<RuleSummary>>`):
+Return `ApiResponse<Vec<RuleSummary>>` in effective evaluation order: ascending
+priority, with filename and source position preserving order among equal
+priorities.
 
 ```json
 {
   "success": true,
-  "data": [
-    {
-      "id": "allow-github-api",
-      "file": "00-base.yaml",
-      "action": "allow",
-      "condition_preview": "$is_github && http.path.startsWith(\"/api/v3\")",
-      "description": "Allow GitHub API v3 access"
-    },
-    {
-      "id": "block-force-push",
-      "file": "00-base.yaml",
-      "action": "block",
-      "condition_preview": "run.tool == \"git\" && \"-f\" in run.flags",
-      "description": null
-    }
-  ]
+  "data": [{
+    "id": "allow-github-api",
+    "file": "00-base.yaml",
+    "action": "allow",
+    "condition_preview": "network.hostname == \"github.com\"",
+    "description": "Allow GitHub API access"
+  }]
 }
 ```
 
-Rules are returned in evaluation order (filename sort, then position within file).
-
 ### S003-IF-003 GET /api/v1/rule/:id [P1]
 
-Get details for a specific rule by ID.
-
-**Success response** (`ApiResponse<Rule>`):
+Return `ApiResponse<RuleDetail>` with the fully expanded CEL condition.
 
 ```json
 {
   "success": true,
   "data": {
     "id": "allow-github-api",
-    "condition": "network.hostname == \"github.com\" && http.method in [\"GET\", \"POST\"] && http.path.startsWith(\"/api/v3\")",
+    "condition": "network.hostname == \"github.com\"",
     "action": "allow",
     "log": false,
-    "description": "Allow GitHub API v3 access",
-    "enrich": null
+    "description": "Allow GitHub API access",
+    "priority": 100
   }
 }
 ```
 
-The `condition` field shows the fully expanded expression (definitions resolved).
-
-**Error response** (rule not found):
-
-```json
-{
-  "success": false,
-  "error": "rule not found: \"nonexistent-id\""
-}
-```
+An unknown ID returns `success: false` with `rule not found: "<id>"`.
 
 ### S003-IF-004 POST /api/v1/rules/reload [P2]
 
-Trigger a rule reload from disk.
-
-**Request body**: none
-
-**Success response** (`ApiResponse<ReloadResult>`):
+Trigger an atomic disk reload. The request has no body.
 
 ```json
 {
@@ -140,315 +98,174 @@ Trigger a rule reload from disk.
   "data": {
     "files_loaded": 3,
     "rules_loaded": 12,
-    "warnings": ["unused definition \"legacy_var\" in 50-custom.yaml"]
+    "warnings": []
   }
 }
 ```
 
-**Error response** (validation failure):
-
-```json
-{
-  "success": false,
-  "error": "reload failed: CEL parse error in 50-custom.yaml rule \"bad-rule\": unexpected token at position 15. Previous rules remain active."
-}
-```
+Validation failure returns `success: false`; the previous rule snapshot and
+derived bridge policy remain active.
 
 ### S003-IF-005 POST /api/v1/rule/test [P2]
 
-Evaluate a CEL expression against a provided context without affecting actual traffic.
-
-**Request body**:
+Compile and evaluate one CEL expression without changing active policy.
 
 ```json
 {
-  "expression": "network.hostname == \"github.com\" && http.method == \"GET\"",
+  "expression": "network.hostname == \"github.com\"",
   "context": {
     "network": {
       "hostname": "github.com",
       "ip": "140.82.121.4",
       "port": 443,
       "protocol": "tcp"
-    },
-    "http": {
-      "method": "GET",
-      "path": "/",
-      "host": "github.com",
-      "headers": {},
-      "body_size": 0
     }
   }
 }
 ```
 
-**Success response** (`ApiResponse<TestExpressionResult>`):
+The response is `ApiResponse<TestExpressionResult>`. CEL syntax or runtime
+errors are returned in `data.error` with `data.result` set to `false`.
+
+### S003-IF-006 POST /v1/requests/rules [P3]
+
+Submit a complete rule file on the agent socket:
+
+```json
+{
+  "rule_file": "version: \"1\"\nrules:\n  - id: allow-pypi\n    condition: 'network.hostname == \"pypi.org\"'\n    action: allow\n"
+}
+```
+
+The daemon validates the file before durably queuing it. Success is HTTP 201
+with `ApiResponse<RuleRequestResponse>`:
 
 ```json
 {
   "success": true,
   "data": {
-    "result": true,
-    "error": null
-  }
-}
-```
-
-**Error response** (invalid expression):
-
-```json
-{
-  "success": true,
-  "data": {
-    "result": false,
-    "error": "CEL parse error: unexpected token at position 10"
-  }
-}
-```
-
-### S003-IF-006 POST /api/v1/agent/rule-request [P3]
-
-Submit a rule request from an agent. This is the **only** rule engine endpoint exposed on the agent-facing socket.
-
-**Request body**:
-
-```json
-{
-  "description": "Need access to PyPI for package installation",
-  "requested_access": "HTTPS to pypi.org",
-  "suggested_condition": "network.hostname == \"pypi.org\" && http.method == \"GET\""
-}
-```
-
-`suggested_condition` is optional.
-
-**Success response** (`ApiResponse<RuleRequest>`):
-
-```json
-{
-  "success": true,
-  "data": {
-    "id": "req-a1b2c3",
-    "submitted_at": "2026-04-21T14:30:00Z",
+    "id": "rr-aabbcc112233",
     "status": "pending",
-    "description": "Need access to PyPI for package installation",
-    "requested_access": "HTTPS to pypi.org",
-    "suggested_condition": "network.hostname == \"pypi.org\" && http.method == \"GET\""
+    "reason": null
   }
 }
 ```
 
-### S003-IF-007 GET /api/v1/rule-requests [P2]
+`GET /v1/requests/rules/:id` lets the submitting container inspect its own
+request status. Requests belonging to another container are not disclosed.
 
-List all rule requests. Host-only endpoint.
+### S003-IF-007 GET /api/v1/requests/rules [P2]
 
-**Query parameters**:
-- `status` (optional): filter by `pending`, `approved`, or `denied`
+Return pending requests on the host socket as
+`ApiResponse<Vec<PendingRuleRequest>>`. Each item includes `id`, the verified
+`container_id`, the submitted `rule_file`, `status`, and optional `reason`.
+Completed requests are retained for bounded durable audit state but omitted
+from this queue view.
 
-**Success response** (`ApiResponse<Vec<RuleRequest>>`):
+### S003-IF-008 POST /api/v1/requests/rules/:id/approve [P2]
 
-```json
-{
-  "success": true,
-  "data": [
-    {
-      "id": "req-a1b2c3",
-      "submitted_at": "2026-04-21T14:30:00Z",
-      "status": "pending",
-      "description": "Need access to PyPI for package installation",
-      "requested_access": "HTTPS to pypi.org",
-      "suggested_condition": "network.hostname == \"pypi.org\" && http.method == \"GET\""
-    }
-  ]
-}
-```
-
-### S003-IF-008 POST /api/v1/rule-request/:id/approve [P2]
-
-Approve a pending rule request. Host-only endpoint. Writes a rule file and triggers reload.
-
-**Request body** (optional overrides):
-
-```json
-{
-  "rule_id": "allow-pypi",
-  "condition": "network.hostname == \"pypi.org\" && http.method == \"GET\"",
-  "file_name": "90-agent-approved.yaml"
-}
-```
-
-If no overrides are provided, the system generates reasonable defaults from the request.
-
-**Success response** (`ApiResponse<RuleRequest>`):
+Approve a pending request. The request has no body. Outcall creates
+`agent-<id>.yaml` atomically with mode 0600, reloads policy, and only then marks
+the request approved.
 
 ```json
 {
   "success": true,
   "data": {
-    "id": "req-a1b2c3",
-    "submitted_at": "2026-04-21T14:30:00Z",
-    "status": "approved",
-    "description": "Need access to PyPI for package installation",
-    "requested_access": "HTTPS to pypi.org",
-    "suggested_condition": "network.hostname == \"pypi.org\" && http.method == \"GET\""
+    "id": "rr-aabbcc112233",
+    "rules_loaded": 12
   }
 }
 ```
 
-**Error response** (request not found or not pending):
+Unknown or completed IDs return HTTP 404 or 409. A write, reload, or durable
+state failure returns HTTP 500 and rolls policy back where possible.
+
+### S003-IF-009 POST /api/v1/requests/rules/:id/reject [P2]
+
+Reject a pending request with an optional bounded reason:
 
 ```json
-{
-  "success": false,
-  "error": "rule request \"req-unknown\" not found"
-}
+{ "reason": "Use the existing package mirror rule." }
 ```
 
-### S003-IF-009 POST /api/v1/rule-request/:id/deny [P2]
-
-Deny a pending rule request. Host-only endpoint.
-
-**Request body**: none
-
-**Success response** (`ApiResponse<RuleRequest>`):
-
-```json
-{
-  "success": true,
-  "data": {
-    "id": "req-a1b2c3",
-    "submitted_at": "2026-04-21T14:30:00Z",
-    "status": "denied",
-    "description": "Need access to PyPI for package installation",
-    "requested_access": "HTTPS to pypi.org",
-    "suggested_condition": "network.hostname == \"pypi.org\" && http.method == \"GET\""
-  }
-}
-```
+Success returns `ApiResponse<RejectRuleResult>` containing the request `id`.
+The reason is limited to 1024 bytes and may not be empty or contain control
+characters.
 
 ### S003-IF-010 CLI commands [P1]
 
-```
-outcall rule list                                                   # list all loaded rules
-outcall rule show <id>                                              # show details for a specific rule
-outcall rule reload                                                 # trigger rule reload from disk
-outcall rule test --expr '<CEL>' --context '<JSON>'                 # test a CEL expression
-outcall rule requests                                               # list pending rule requests
-outcall rule requests --status approved                             # filter by status
-outcall rule approve <request-id>                                   # approve a rule request
-outcall rule deny <request-id>                                      # deny a rule request
+```text
+outcall rules reload
+outcall requests list
+outcall requests approve <request-id>
+outcall requests reject <request-id> [--reason <text>]
 ```
 
-All commands accept the global `--socket <path>` flag.
+All commands accept the global `--socket <path>` option. Raw rule inspection
+and CEL testing remain available through S003-IF-002, S003-IF-003, and
+S003-IF-005; dedicated CLI wrappers are tracked separately by S003-FR-035.
 
 ### S003-IF-011 CLI output format [P1]
 
-**`outcall rule list`**:
-```
-ID                    FILE             ACTION    CONDITION
-allow-github-api      00-base.yaml     allow     $is_github && http.path.startsWith("/api/v3")
-block-force-push      00-base.yaml     block     run.tool == "git" && "-f" in run.flags
-allow-npm-registry    10-node.yaml     allow     network.hostname == "registry.npmjs.org"
+The CLI prints concise human-readable results and writes errors to stderr.
+Representative success output is:
+
+```text
+Reloaded 12 rule(s) from 3 file(s).
+Rule request "rr-aabbcc112233" approved; 12 rule(s) loaded.
+Rule request "rr-aabbcc112233" rejected.
 ```
 
-**`outcall rule show allow-github-api`**:
-```
-Rule:        allow-github-api
-File:        00-base.yaml
-Action:      allow
-Log:         false
-Description: Allow GitHub API v3 access
-Condition:   network.hostname == "github.com" && http.method in ["GET", "POST"] && http.path.startsWith("/api/v3")
-```
-
-**`outcall rule reload`** (success):
-```
-Rules reloaded: 3 files, 12 rules loaded.
-Warnings:
-  - unused definition "legacy_var" in 50-custom.yaml
-```
-
-**`outcall rule reload`** (failure):
-```
-Error: reload failed: CEL parse error in 50-custom.yaml rule "bad-rule": unexpected token at position 15.
-Previous rules remain active.
-```
-
-**`outcall rule test --expr '...' --context '...'`**:
-```
-Result: true
-```
-
-**`outcall rule requests`**:
-```
-ID           SUBMITTED             STATUS    DESCRIPTION
-req-a1b2c3   2026-04-21 14:30:00   pending   Need access to PyPI for package installation
-req-d4e5f6   2026-04-21 13:00:00   approved  Need access to npm registry
-```
-
-**`outcall rule approve req-a1b2c3`**:
-```
-Rule request "req-a1b2c3" approved. Rule "allow-pypi" added and rules reloaded.
-```
-
-**`outcall rule deny req-a1b2c3`**:
-```
-Rule request "req-a1b2c3" denied.
-```
-
-All error output goes to stderr. Exit code 1 on error, 0 on success.
+`requests list` prints `ID`, `CONTAINER`, and `STATUS`, or
+`No pending rule requests.` Exit status is zero on success and non-zero on
+transport or API failure.
 
 ### S003-IF-012 YAML rule file schema [P1]
 
-Complete schema for a rule file:
-
 ```yaml
-# Required. Only "1" is supported.
 version: "1"
-
-# Optional. Reusable CEL sub-expressions.
-definitions:
+definitions:                     # Optional, file-scoped CEL expressions.
   <name>: <CEL expression>
-
-# Required (may be empty list).
-rules:
-  - id: <string>                    # Required. Unique across all files.
-    condition: <CEL expression>     # Required. Must evaluate to boolean.
-    action: <allow|block|enrich>    # Required.
-    log: <boolean>                  # Optional. Default: false.
-    description: <string>           # Optional. Human-readable.
-    priority: <integer>             # Optional. Lower = higher priority.
-    egress:                         # Optional. DNS allow follow-up behavior.
-      mode: <proxy|direct_ip>      # proxy = no L3/L4 hole; direct_ip = temporary nft allows.
-      ports: [<port>, ...]          # Optional. direct_ip only. Default: [80, 443].
-    enrich:                         # Required when action is "enrich".
-      script: <path>               # Relative to rules directory.
-      timeout_ms: <integer>         # Optional. Default: 5000.
+rules:                           # Optional; defaults to an empty list.
+  - id: <string>                 # Required and globally unique.
+    condition: <CEL expression>  # Required and must evaluate to bool to match.
+    action: <allow|block>        # enrich is reserved and currently rejected.
+    log: <boolean>               # Optional; default false.
+    description: <string>        # Optional.
+    priority: <integer>          # Optional; lower runs first, default 100.
+    egress:                      # Optional and valid only for allow rules.
+      mode: <proxy|direct_ip>
+      ports: [<port>, ...]       # direct_ip only; defaults to 80 and 443.
+      allow_private_ips: false   # Explicit opt-in for internal destinations.
 ```
+
+Both `.yaml` and `.yml` files are accepted. Unknown fields, unsafe `enrich`,
+and unimplemented `egress.mode: intercept` settings are rejected.
 
 ### S003-IF-013 Context variable types [P1]
 
-CEL type mapping for context variables:
-
 | Variable | CEL Type | Notes |
 |----------|----------|-------|
-| `network.hostname` | `string` | May be absent (DNS not resolved yet) |
-| `network.ip` | `string` | Always present for network requests |
-| `network.port` | `int` | |
-| `network.protocol` | `string` | `"tcp"` or `"udp"` |
-| `http.method` | `string` | Uppercase: `"GET"`, `"POST"`, etc. |
-| `http.path` | `string` | Includes leading `/` |
-| `http.host` | `string` | From `Host` header |
-| `http.headers` | `map(string, string)` | Header names are lowercased |
+| `network.hostname` | `string` | Empty when unresolved or absent |
+| `network.ip` | `string` | Empty when absent |
+| `network.port` | `int` | Zero when absent |
+| `network.protocol` | `string` | Usually `tcp` or `udp` |
+| `http.method` | `string` | Uppercase for proxy requests |
+| `http.path` | `string` | Includes leading `/` when present |
+| `http.host` | `string` | Validated request authority |
+| `http.headers` | `map(string, string)` | Header names are normalized |
 | `http.body_size` | `int` | Bytes |
-| `dns.query` | `string` | Queried domain name |
-| `dns.record_type` | `string` | `"A"`, `"AAAA"`, `"CNAME"`, etc. |
+| `dns.query` | `string` | Normalized queried name |
+| `dns.record_type` | `string` | For example `A` or `AAAA` |
 | `docker.image` | `string` | Full image reference |
 | `docker.command` | `list(string)` | Command and arguments |
-| `docker.volumes` | `list(string)` | Volume mount paths |
-| `docker.env_keys` | `list(string)` | Environment variable names only (not values) |
-| `docker.capabilities` | `list(string)` | Linux capabilities requested |
-| `run.tool` | `string` | Tool/binary name |
+| `docker.volumes` | `list(string)` | Requested mount paths |
+| `docker.env_keys` | `list(string)` | Names only, never values |
+| `docker.capabilities` | `list(string)` | Requested Linux capabilities |
+| `run.tool` | `string` | Tool identifier |
 | `run.args` | `list(string)` | Positional arguments |
 | `run.flags` | `list(string)` | Flags including dashes |
 | `run.cwd` | `string` | Working directory |
-| `run.context` | `map(string, dyn)` | Populated by enrich hooks |
+| `run.context` | `map(string, dyn)` | Typed request metadata |
+| `agent.name` | `string` | Host-verified managed agent name |

@@ -152,6 +152,7 @@ S011-US-007 [P3] As a host operator, I want a way to obtain the CA bundle from t
 | S011-AS-008 | Acceptance | P2 | Non-intercept rule on same daemon unchanged | Draft |
 | S011-AS-009 | Acceptance | P2 | `outcall ca init` produces 4096-bit RSA CA valid 10 years | Draft |
 | S011-AS-010 | Acceptance | P2 | `outcall ca bundle` emits PEM to stdout | Draft |
+| S011-AS-011 | Acceptance | P2 | World-readable CA key rejected | Draft |
 | S011-IF-001 | Interface | P2 | Daemon flag `--ca-cert <path>` | Draft |
 | S011-IF-002 | Interface | P2 | Daemon flag `--ca-key <path>` | Draft |
 | S011-IF-003 | Interface | P2 | Daemon flag `--intercept-leaf-ttl-secs <n>` | Draft |
@@ -163,6 +164,10 @@ S011-US-007 [P3] As a host operator, I want a way to obtain the CA bundle from t
 | S011-IF-009 | Interface | P2 | CLI: `outcall ca status` | Draft |
 | S011-IF-010 | Interface | P2 | CEL context: `http.method`, `http.path`, `http.headers.*`, `http.body_size` | Draft |
 | S011-IF-011 | Interface | P3 | CEL context: `http.body` (string, present when body matching enabled) | Draft |
+| S011-IF-012 | Interface | P2 | GET interception status | Draft |
+| S011-IF-013 | Interface | P2 | Flush leaf certificate cache | Draft |
+| S011-IF-014 | Interface | P2 | Intercept BLOCK response | Draft |
+| S011-IF-015 | Interface | P2 | Interception failure response | Draft |
 | S011-EC-001 | Edge Case | P2 | Upstream pins certs (HSTS/HPKP) — agent gets TLS error | Draft |
 | S011-EC-002 | Edge Case | P2 | ALPN mismatch (agent wants h2, upstream offers http/1.1) | Draft |
 | S011-EC-003 | Edge Case | P2 | Agent does not trust CA — handshake fails locally | Draft |
@@ -183,6 +188,9 @@ S011-US-007 [P3] As a host operator, I want a way to obtain the CA bundle from t
 | S011-SC-006 | Success | P3 | Body matching catches a known payload pattern | Draft |
 | S011-SC-007 | Success | P2 | Interception logs include matched rule and outcome | Draft |
 | S011-SC-008 | Success | P2 | Pinned host failure surfaces a clear operator-facing error | Draft |
+| S011-SC-009 | Success | P2 | CA key permissions enforced | Draft |
+| S011-SC-010 | Success | P2 | CA key material not leaked | Draft |
+| S011-SC-011 | Success | P2 | Intercept, proxy, and direct-IP coexist | Draft |
 
 ## Out of Scope
 

@@ -9,16 +9,30 @@ Create and start an agent container with security constraints enforced.
 ```json
 {
   "image": "my-agent:latest",
-  "network": "staging",
+  "network": "outcall-staging",
   "name": "my-task",
+  "user": "1000:1000",
   "memory_limit": 268435456,
   "cpu_shares": 512,
   "env": ["MY_VAR=value"],
-  "cmd": ["/bin/sh", "-c", "run-agent"]
+  "cmd": ["run-agent"],
+  "entrypoint": ["/bin/sh", "-c"],
+  "working_dir": "/workspace",
+  "volumes": ["/host/project:/workspace"],
+  "include_outcall_helper_mounts": false,
+  "interactive": false,
+  "tty": false
 }
 ```
 
-Only `image` is required. If `network` is omitted, the default network (`outcall-default`) is used. If `name` is omitted, an 8-character hex suffix is generated. The `outcall-agent-` prefix is always prepended. Additional `env` entries are merged with the mandatory proxy/DNS env vars. `memory_limit` is in bytes. `cmd` overrides the image's default command.
+Only `image` is required. If `network` is omitted, `outcall-default` is used.
+The daemon inspects the network driver and exact bridge interface before
+creation. A supplied `name` is used exactly; if omitted, `outcall-<8-hex>` is
+generated. Additional environment entries are merged with daemon-owned proxy
+variables. Memory is expressed in bytes, CPU is a relative share weight, and
+helper mounts default to disabled when the field is omitted. Every volume source
+is checked against protected host paths before Docker is called. `user` accepts
+only a numeric non-root `UID:GID`; omission uses daemon default `65532:65532`.
 
 **Success response** (`ApiResponse<ContainerCreateResult>`):
 
@@ -27,7 +41,7 @@ Only `image` is required. If `network` is omitted, the default network (`outcall
   "success": true,
   "data": {
     "container_id": "sha256:a1b2c3d4...",
-    "name": "outcall-agent-my-task",
+    "name": "my-task",
     "created": true
   }
 }
@@ -36,7 +50,7 @@ Only `image` is required. If `network` is omitted, the default network (`outcall
 **Error response** (host socket denied):
 
 ```json
-{ "success": false, "error": "bind mount denied — \"/run/outcall/host.sock\" is on the deny list" }
+{ "success": false, "error": "bind mount denied - \"/run/outcall\" exposes protected host path \"/run/outcall/host.sock\"" }
 ```
 
 **Error response** (network missing):
@@ -53,7 +67,7 @@ Stop a running container.
 
 ```json
 {
-  "name": "outcall-agent-a3f7b201",
+  "name": "outcall-a3f7b201",
   "timeout": 15
 }
 ```
@@ -63,13 +77,13 @@ Stop a running container.
 **Success response** (`ApiResponse<ContainerStopResult>`):
 
 ```json
-{ "success": true, "data": { "name": "outcall-agent-a3f7b201", "stopped": true } }
+{ "success": true, "data": { "name": "outcall-a3f7b201", "stopped": true } }
 ```
 
 **Error response** (not running):
 
 ```json
-{ "success": false, "error": "container \"outcall-agent-a3f7b201\" is not running" }
+{ "success": false, "error": "container \"outcall-a3f7b201\" is not running" }
 ```
 
 ### S008-IF-003 POST /api/v1/container/remove [P1]
@@ -80,7 +94,7 @@ Remove a stopped container.
 
 ```json
 {
-  "name": "outcall-agent-a3f7b201",
+  "name": "outcall-a3f7b201",
   "force": false
 }
 ```
@@ -90,13 +104,13 @@ Remove a stopped container.
 **Success response** (`ApiResponse<ContainerRemoveResult>`):
 
 ```json
-{ "success": true, "data": { "name": "outcall-agent-a3f7b201", "removed": true } }
+{ "success": true, "data": { "name": "outcall-a3f7b201", "removed": true } }
 ```
 
 **Error response** (still running):
 
 ```json
-{ "success": false, "error": "container \"outcall-agent-a3f7b201\" is still running — stop it first or use force" }
+{ "success": false, "error": "container \"outcall-a3f7b201\" is still running — stop it first or use force" }
 ```
 
 ### S008-IF-004 GET /api/v1/containers [P1]
@@ -111,7 +125,7 @@ List all outcall-managed containers.
   "data": [
     {
       "container_id": "a1b2c3d4...",
-      "name": "outcall-agent-a3f7b201",
+      "name": "outcall-a3f7b201",
       "image": "my-agent:latest",
       "state": "running",
       "network": "outcall-default",
@@ -119,7 +133,7 @@ List all outcall-managed containers.
     },
     {
       "container_id": "e5f6g7h8...",
-      "name": "outcall-agent-c4d8e502",
+      "name": "outcall-c4d8e502",
       "image": "my-agent:latest",
       "state": "exited",
       "network": "outcall-default",
@@ -140,7 +154,7 @@ Inspect a single container.
   "success": true,
   "data": {
     "container_id": "a1b2c3d4...",
-    "name": "outcall-agent-a3f7b201",
+    "name": "outcall-a3f7b201",
     "image": "my-agent:latest",
     "state": "running",
     "network": "outcall-default",
@@ -150,19 +164,23 @@ Inspect a single container.
       "/usr/local/bin/outcall-agent:/usr/local/bin/outcall:ro"
     ],
     "env": [
-      "HTTP_PROXY=http://10.200.0.1:8080",
-      "HTTPS_PROXY=http://10.200.0.1:8080",
-      "NO_PROXY=localhost,127.0.0.1"
+      "HTTP_PROXY=<redacted>",
+      "HTTPS_PROXY=<redacted>",
+      "NO_PROXY=<redacted>"
     ],
     "created_at": "2026-04-21T14:30:00Z"
   }
 }
 ```
 
+Environment names are returned for diagnostics, but values are always redacted
+at the daemon boundary so provider and broker tokens do not reach routine CLI,
+dashboard, or log output.
+
 **Error response** (not found):
 
 ```json
-{ "success": false, "error": "container \"outcall-agent-xyz\" does not exist" }
+{ "success": false, "error": "container \"outcall-xyz\" does not exist" }
 ```
 
 ### S008-IF-006 POST /api/v1/container/pull [P2]
@@ -197,11 +215,11 @@ outcall container create --image my-agent:latest --network staging            # 
 outcall container create --image my-agent:latest --name my-task               # create with custom suffix
 outcall container create --image my-agent:latest --memory 256m --cpu-shares 512
 outcall container list                                                        # list all agent containers
-outcall container inspect --name outcall-agent-a3f7b201                       # inspect single container
-outcall container stop --name outcall-agent-a3f7b201                          # stop container
-outcall container stop --name outcall-agent-a3f7b201 --timeout 30             # stop with custom timeout
-outcall container remove --name outcall-agent-a3f7b201                        # remove stopped container
-outcall container remove --name outcall-agent-a3f7b201 --force                # force remove running container
+outcall container inspect --name outcall-a3f7b201                       # inspect single container
+outcall container stop --name outcall-a3f7b201                          # stop container
+outcall container stop --name outcall-a3f7b201 --timeout 30             # stop with custom timeout
+outcall container remove --name outcall-a3f7b201                        # remove stopped container
+outcall container remove --name outcall-a3f7b201 --force                # force remove running container
 outcall container pull --image my-agent:latest                                # pull image
 ```
 
@@ -211,14 +229,14 @@ All commands accept the global `--socket <path>` flag.
 
 **`outcall container create`** (success):
 ```
-Container "outcall-agent-a3f7b201" created and started.
+Container "outcall-a3f7b201" created and started.
 ```
 
 **`outcall container list`** (with containers):
 ```
 NAME                       IMAGE              STATE     NETWORK           CREATED
-outcall-agent-a3f7b201     my-agent:latest    running   outcall-default   2026-04-21T14:30:00Z
-outcall-agent-c4d8e502     my-agent:latest    exited    outcall-default   2026-04-21T14:25:00Z
+outcall-a3f7b201     my-agent:latest    running   outcall-default   2026-04-21T14:30:00Z
+outcall-c4d8e502     my-agent:latest    exited    outcall-default   2026-04-21T14:25:00Z
 ```
 
 **`outcall container list`** (no containers):
@@ -228,7 +246,7 @@ No agent containers found.
 
 **`outcall container inspect`**:
 ```
-Container:    outcall-agent-a3f7b201
+Container:    outcall-a3f7b201
 ID:           a1b2c3d4...
 Image:        my-agent:latest
 State:        running
@@ -246,12 +264,12 @@ Created:      2026-04-21T14:30:00Z
 
 **`outcall container stop`** (success):
 ```
-Container "outcall-agent-a3f7b201" stopped.
+Container "outcall-a3f7b201" stopped.
 ```
 
 **`outcall container remove`** (success):
 ```
-Container "outcall-agent-a3f7b201" removed.
+Container "outcall-a3f7b201" removed.
 ```
 
 **`outcall container pull`** (success):

@@ -9,10 +9,12 @@
 | S002-EC-005 | Network does not exist (destroy) | Return success with `destroyed: false`. Idempotent. |
 | S002-EC-006 | Containers connected (destroy) | Return error listing container names. Do not force-disconnect. |
 | S002-EC-007 | Destroy default network | Allowed. Recreatable via `outcall network create`. |
-| S002-EC-008 | Network exists but bridge mismatch | The create endpoint **SHOULD** log a warning but **MUST** still return success. |
+| S002-EC-008 | Network exists but driver or bridge identity mismatches | Reject create, status, and destroy. List ignores the lookalike and logs a warning. |
 | S002-EC-009 | Multiple rapid create calls | Idempotency handles this: second call sees existing network. |
 | S002-EC-010 | outcalld shutdown while networks exist | Networks persist in Docker. Intentional — they outlive the daemon so containers are not disrupted. |
 | S002-EC-011 | Docker available at startup but disappears later | Individual endpoint calls return Docker connection errors. The daemon continues running. |
 | S002-EC-012 | Subnet collision with existing Docker network | outcalld detects the collision before calling Docker and returns a clear error naming the conflicting network. |
-| S002-EC-013 | All 255 /24 subnets exhausted | Return error: `"no available subnets in 10.200.0.0/16"`. |
+| S002-EC-013 | All 256 /24 subnets exhausted | Return error: `"no available subnets in 10.200.0.0/16"`. |
 | S002-EC-014 | Invalid network name (special characters, too long) | Return error with validation message. |
+| S002-EC-015 | Existing subnet contains or is contained by requested subnet | Reject as an overlap even when the CIDR strings differ. |
+| S002-EC-016 | Allocation block has host bits or crosses RFC 1918 boundary | Reject daemon startup before bridge or Docker network mutation. |

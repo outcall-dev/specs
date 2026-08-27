@@ -4,10 +4,10 @@
 
 **Condition:** Rule evaluation request arrives over a TCP socket instead of a Unix domain socket.
 
-**Expected behavior:** `EvalContext.agent` is `None`. No error returned to caller.
-Rule evaluation proceeds with remaining context fields.
+**Expected behavior:** The container-facing request is rejected before rule
+evaluation. Trusted host-side synthetic evaluations may still omit `agent`.
 
-**Test:** Send a request via HTTP (TCP) and verify `agent` is absent from context JSON.
+**Test:** Submit an agent API request without a Linux peer PID and verify it is rejected.
 
 ---
 
@@ -17,10 +17,10 @@ Rule evaluation proceeds with remaining context fields.
 `DockerManager`'s container-name-by-IP map (e.g., container started before the cache
 was populated, or a system process not tracked by Outcall).
 
-**Expected behavior:** `EvalContext.agent` is `None`. No error logged at ERROR level
-(INFO is acceptable). Rule evaluation proceeds.
+**Expected behavior:** The container-facing request is rejected. A Docker API
+failure is distinguishable from a verified absence and also fails closed.
 
-**Test:** Mock DockerManager to return `None` for a known PID → verify agent is `None`.
+**Test:** Use an unavailable or non-matching DockerManager and verify the enforcement request is rejected.
 
 ---
 
@@ -73,10 +73,11 @@ No race condition in the resolution chain.
 
 **Condition:** Rule evaluation must complete within 50ms (S003-EVAL-TIMEOUT).
 
-**Expected behavior:** Agent name resolution adds ≤ 1ms to the evaluation path (in-memory
-cache lookup only). If resolution takes longer, it should timeout and set agent to `None`.
+**Expected behavior:** Warm source-IP resolution is an in-memory lookup. A miss
+uses one bounded Docker list call. PID lookup is bounded by the agent API
+identity timeout. Timeout rejects the request rather than omitting identity.
 
-**Test:** Time `build_eval_context` with warm cache — must be less than 1ms on a cold run.
+**Test:** Time repeated source-IP lookups with a warm identity cache and verify they avoid Docker calls.
 
 ---
 
@@ -85,8 +86,7 @@ cache lookup only). If resolution takes longer, it should timeout and set agent 
 **Condition:** The PID from `SO_PEERCRED` has already exited between the accept and the
 time we read `/proc/<PID>/status`.
 
-**Expected behavior:** `EvalContext.agent` is `None`. No error raised.
-The request still gets a verdict, just without agent identity.
+**Expected behavior:** The request is rejected because caller identity cannot be proven.
 
 **Test:** Send request from a quickly-exiting subprocess → verify graceful fallback.
 
@@ -97,7 +97,7 @@ The request still gets a verdict, just without agent identity.
 **Condition:** `build_eval_context` is called before DockerManager has populated its
 container-name-by-IP map.
 
-**Expected behavior:** `EvalContext.agent` is `None`. No error raised.
-DockerManager's cache will be populated as containers join (S008).
+**Expected behavior:** Requests are rejected until Docker identity is available.
+The event watcher refreshes the identity index before marking it healthy.
 
-**Test:** Daemon starts and immediately receives a rule evaluation request → agent is `None`.
+**Test:** Invalidate the identity index and verify requests are rejected until an authoritative lookup succeeds.

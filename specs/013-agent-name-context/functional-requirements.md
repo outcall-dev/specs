@@ -19,16 +19,29 @@ with Default means `None` for backwards-compatible JSON serialization).
 
 **Acceptance:** Existing `EvalContext` JSON roundtrip tests still pass (no new required fields).
 
-## FR-003: SO_PEERCRED to container name resolution
+## FR-003: SO_PEERCRED to immutable container identity
 
 **Requirement:** In the Unix socket accept path (where `PermissionRequest` arrives from the agent),
-read `SO_PEERCRED` to obtain the caller's PID. Resolve PID → container IP via `/proc/<PID>/status`,
-then call `DockerManager::lookup_container_name_by_ip(ip)` to get the container name.
+read `SO_PEERCRED` to obtain the caller's host-namespace PID. Resolve the PID's
+cgroup to a Docker container ID, inspect that exact ID, require the
+`managed-by=outcalld` label, and use the inspected container name.
 
-**Rationale:** `SO_PEERCRED` is the only reliable way to identify the calling container on a
-Unix domain socket. The existing `container_name_for_ip` already handles the Docker API lookup.
+**Rationale:** An agent-supplied name or mutable IP is not sufficient identity
+for the shared Unix socket. The kernel credential and immutable Docker ID bind
+the request to the actual caller.
 
 **Acceptance:** A request from agent container `foobar-1` produces container name `"foobar-1"`.
+
+## FR-007: Network enforcement requires managed identity
+
+**Requirement:** The HTTP proxy and DNS filter must map each peer source IP to
+a currently managed Docker container before rule evaluation. Missing identity,
+Docker lookup failure, or an unhealthy identity source must reject the request
+with HTTP 403 or DNS REFUSED. These paths must not evaluate generic rules with
+`agent: None`.
+
+**Acceptance:** A request from an unmanaged bridge peer is rejected even when a
+generic allow rule would otherwise match.
 
 ## FR-004: Agent name derived from container name
 
@@ -65,33 +78,7 @@ agent identity. They serve different purposes and both are needed.
 
 **Acceptance:** Existing rules using `docker.image == "..."` continue to work unchanged.
 
-## EC-001: SO_PEERCRED not available (non-Unix socket)
+## Edge cases
 
-If the rule evaluation request arrives over a non-Unix socket (e.g., HTTP over TCP),
-`SO_PEERCRED` is not available. In this case, `AgentContext` should be `None`.
-
-**Handling:** `build_eval_context` receives a reference to the raw socket (or a flag)
-indicating whether SO_PEERCRED is available. If not, `agent: None`.
-
-## EC-002: Container IP not found in DockerManager
-
-If `SO_PEERCRED` returns a valid PID but the container IP cannot be resolved
-(`/proc/<PID>/status` missing or DockerManager has no entry for that IP),
-`AgentContext` should be `None`.
-
-**Handling:** `container_name_for_ip` already returns `Option<String>`. Propagate `None`
-through the resolution chain.
-
-## EC-003: Agent name with no trailing `-N`
-
-**Handling:** The strip function should only strip when the suffix matches `-[0-9]+$`.
-If no match, return the full name. This preserves container names that genuinely
-do not follow the `-N` pattern.
-
-## EC-004: Async resolution does not block rule evaluation
-
-**Handling:** The PID → container name resolution is synchronous (reads `/proc` and
-checks an in-memory `HashMap` in DockerManager). It must not do an async Docker API
-call during rule evaluation. `lookup_container_name_by_ip` on `DockerManager` is
-already `async` but returns instantly from the cache. Ensure the cache is populated
-on container join (S008) so that rule evaluation never hits a Docker API delay.
+Identity failure, suffix handling, concurrency, and bounded lookup behavior are
+defined once in [edge-cases.md](./edge-cases.md).

@@ -10,10 +10,11 @@
 
 ## Overview
 
-This spec proves that Outcall's security enforcement happens **outside and
-around** the agent container, not inside it. The agent cannot bypass rules by
-modifying its internal configuration because all traffic flows through the host
-bridge where nftables rules are applied.
+This spec proves that Outcall's network enforcement happens **outside and
+around** the agent container, not inside it. On native Linux this is the host
+network namespace; on macOS it is Docker Desktop's Linux runtime. The agent
+cannot bypass rules by modifying its internal configuration because its only
+network is backed by the inspected Outcall bridge where nftables rules apply.
 
 ## Security Model
 
@@ -38,8 +39,12 @@ bridge where nftables rules are applied.
 **Key principle**: Traffic from the agent namespace MUST pass through the host
 bridge's FORWARD chain. The agent cannot bypass this because:
 1. The veth pair connects the namespace to the bridge
-2. All forwarded traffic hits nftables rules on the host
-3. The agent namespace has no direct route to external interfaces
+2. The daemon accepts only a Docker `bridge` network backed by its exact bridge interface
+3. Bridge netfilter MUST be enabled before container creation
+4. All forwarded traffic hits the daemon-managed nftables rules
+5. The agent has no second Docker network, host networking, or added capabilities
+6. Docker `HostConfig.NetworkMode` is pinned to the same inspected managed network
+7. The agent process uses a numeric non-root UID/GID
 
 ## Acceptance Scenarios
 
@@ -73,23 +78,74 @@ bridge's FORWARD chain. The agent cannot bypass this because:
 
 ### AS-006: Host CLI Isolation
 **Given** an agent container is running
-**When** the agent tries to access Docker socket, host filesystem, or host processes
+**When** the agent tries to access a Docker/containerd control socket, undeclared host file, or host process
 **Then** all attempts **fail**
-**Because** the agent is isolated in its own namespace
+**Because** control-socket and ancestor mounts are denied, undeclared host resources are absent, and the agent is isolated in its own namespace
+
+The project workspace and any operator-declared Docker volumes are intentional
+exceptions: once mounted, their contents are container files and are not
+mediated per filesystem operation. `.outcall` is separately over-mounted
+read-only.
+
+### AS-007: Forged Network Rejected
+**Given** a Docker network has an `outcall-` name but uses the default, host, or a different bridge
+**When** a managed container creation request selects it
+**Then** `outcalld` rejects the request before Docker creates the container
+
+### AS-008: Netfilter Preflight Fails Closed
+**Given** either bridge netfilter hook is disabled
+**When** the CLI or daemon API attempts a managed recipe launch
+**Then** creation is refused and no agent container remains
+
+### AS-009: Network Services Require Managed Peer Identity
+**Given** a process that is not an Outcall-managed container can reach the proxy or DNS listener
+**When** it submits an HTTP, HTTPS CONNECT, or DNS request
+**Then** the request is rejected before rule evaluation
+**Because** generic allow rules cannot authorize an unidentified network peer
+
+### AS-010: Private Destinations Require Explicit Opt-In
+**Given** an allowed hostname resolves to a private, loopback, link-local, or otherwise restricted address
+**When** the matched rule does not set `egress.allow_private_ips: true`
+**Then** DNS and proxy forwarding fail closed without connecting to that address
+
+### AS-011: Container Control Mounts Cannot Be Shadowed
+**Given** a create request includes a caller-controlled bind or named volume
+**When** its destination equals or covers the agent socket, helper shim, or resolver path
+**Then** `outcalld` rejects the request before Docker creation
+
+### AS-012: Host Container Lifecycle Is Outcall-Scoped
+**Given** a host container lacks the exact `managed-by=outcalld` label
+**When** an operator calls the Outcall inspect, stop, or remove endpoint for it
+**Then** the request is rejected without exposing details or changing the container
+
+### AS-013: Daemon Container Uses Explicit Capabilities
+**Given** the CLI starts the trusted `outcalld` container
+**When** Docker evaluates its host configuration
+**Then** Docker's default capabilities are dropped; `NET_ADMIN` and
+`NET_BIND_SERVICE` are added; Linux Unix-socket transport additionally adds only
+`CHOWN` and `DAC_OVERRIDE`; Docker-exec transport omits those two;
+`no-new-privileges` is set; and process creation is bounded
 
 ## E2E Test Inventory
 
 | Test | File | Validates |
 |------|------|-----------|
-| Security Boundary | `14-security-boundary.sh` | AS-001, AS-002, AS-003 |
-| Trusted Repos | `15-trusted-repos.sh` | AS-004, AS-005 |
-| Hostname/IP Allowlist | `16-hostname-ip-allowlist.sh` | Allowed vs blocked hosts/IPs |
-| Host CLI Restrictions | `17-host-cli-restrictions.sh` | AS-006 |
+| Managed hardening | `scripts/test-managed-container-security.sh` | Labels, non-root user, capabilities, rootfs, limits, DNS/proxy, mounts |
+| Network isolation | `scripts/test-container-isolation.sh` | Bridge identity, default drop, host/peer blocking |
+| Netfilter preflight | `scripts/test-netfilter-preflight.sh` | AS-008, CLI and daemon fail-closed behavior |
+| Bind source/destination validation | `outcalld/src/bind_mount.rs` tests | AS-006/AS-011, direct, ancestor, malformed, symlink, and control-shadow mounts |
+| Managed network validation | `outcalld/src/managed_network.rs` tests | AS-007 |
+| Managed Docker configuration | `outcalld/src/docker/` tests | Network mode, hardening, helper preflight, managed label, image references |
+| Daemon launch configuration | `outcall/src/daemon_commands.rs` tests | Capability drop/add, no-new-privileges, init, PID limit, and rules-directory validation |
 
 ## Implementation Notes
 
-- nftables rules are applied in the **host network namespace**
+- nftables rules are applied in the **Linux enforcement namespace**
 - The agent runs in a **separate network namespace** connected via veth pair
 - The bridge (`outcall0`) is the enforcement point
 - Container iptables rules only affect traffic **inside** the container namespace
-- Host nftables rules affect all traffic **forwarded** through the bridge
+- Runtime nftables rules affect all traffic **forwarded** through the bridge
+- HTTP proxy variables improve protocol visibility, but the bridge firewall is the non-bypassable boundary
+- Host tools and files outside explicit mounts require the tokenized broker and matching rules
+- The daemon is a trusted host-control component because it owns `NET_ADMIN` and
+  the Docker socket; the agent receives neither the socket nor the daemon host API
