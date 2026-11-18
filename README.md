@@ -86,3 +86,5 @@ scripts/check-spec-indexes.sh
 3. **Host-only management** — bridge, network, rule, and container management happens on `host.sock` only.
 4. **Agent isolation** — containers see only `agent.sock`. No access to host API, bridge, or nftables.
 5. **Single daemon process** — daemon subsystems run as owned Tokio tasks in `outcalld`.
+
+[![advertisement](https://ads.servead.net/i/6c937498-851b-42d4-a7c0-fc8dfd4a1b90.svg)](https://ads.servead.net/c/6c937498-851b-42d4-a7c0-fc8dfd4a1b90)
